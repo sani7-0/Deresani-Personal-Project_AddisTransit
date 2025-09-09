@@ -1,0 +1,129 @@
+[
+  {
+    "id": "route-38",
+    "name": "Meskel Square to Piazza",
+    "shortName": "38",
+    "color": "#1e40af",
+    "type": "bus",
+    "description": "Addis Ababa City Bus",
+    "stops": [
+      {
+        "id": "stop-1",
+        "name": "Meskel Square",
+        "lat": 9.0054,
+        "lng": 38.7636,
+        "nextArrivals": ["2 min", "12 min", "22 min"]
+      },
+      {
+        "id": "stop-2",
+        "name": "Piazza",
+        "lat": 9.0154,
+        "lng": 38.7736,
+        "nextArrivals": ["5 min", "15 min", "25 min"]
+      },
+      {
+        "id": "stop-3",
+        "name": "CMC Terminal",
+        "lat": 9.0254,
+        "lng": 38.7836,
+        "nextArrivals": ["8 min", "18 min", "28 min"]
+      }
+    ]
+  },
+  {
+    "id": "route-91",
+    "name": "Bole to Kazanchis",
+    "shortName": "91",
+    "color": "#f59e0b",
+    "type": "bus",
+    "description": "Addis Ababa City Bus",
+    "stops": [
+      {
+        "id": "stop-4",
+        "name": "Bole Airport",
+        "lat": 8.9954,
+        "lng": 38.7536,
+        "nextArrivals": ["5 min", "15 min", "25 min"]
+      },
+      {
+        "id": "stop-5",
+        "name": "Kazanchis",
+        "lat": 9.0054,
+        "lng": 38.7436,
+        "nextArrivals": ["8 min", "18 min", "28 min"]
+      }
+    ]
+  },
+  {
+    "id": "route-12",
+    "name": "Merkato to Arat Kilo",
+    "shortName": "12",
+    "color": "#16a34a",
+    "type": "bus",
+    "description": "Addis Ababa City Bus",
+    "stops": [
+      {
+        "id": "stop-6",
+        "name": "Merkato",
+        "lat": 8.9854,
+        "lng": 38.7236,
+        "nextArrivals": ["1 min", "11 min", "21 min"]
+      },
+      {
+        "id": "stop-7",
+        "name": "Arat Kilo",
+        "lat": 9.0154,
+        "lng": 38.7536,
+        "nextArrivals": ["3 min", "13 min", "23 min"]
+      }
+    ]
+  },
+  {
+    "id": "route-23",
+    "name": "Current Location",
+    "shortName": "23",
+    "color": "#dc2626",
+    "type": "bus",
+    "description": "Addis Ababa City Bus",
+    "stops": [
+      {
+        "id": "stop-8",
+        "name": "Current Location",
+        "lat": 9.0054,
+        "lng": 38.7636,
+        "nextArrivals": ["Leave now", "9:38 AM", "9:45 AM"]
+      },
+      {
+        "id": "stop-9",
+        "name": "National Theatre",
+        "lat": 9.0054,
+        "lng": 38.7436,
+        "nextArrivals": ["Go in 4 min", "Go in 14 min", "Go in 24 min"]
+      }
+    ]
+  },
+  {
+    "id": 7,
+    "name": "CMC to Bole",
+    "shortName": "07",
+    "color": "#8b5cf6",
+    "type": "bus",
+    "description": "Addis Ababa City Bus",
+    "stops": [
+      { "id": "stop-10", "name": "CMC", "lat": 9.0300, "lng": 38.8000, "nextArrivals": ["2 min", "12 min", "22 min"] },
+      { "id": "stop-11", "name": "Bole", "lat": 8.9990, "lng": 38.7800, "nextArrivals": ["7 min", "17 min", "27 min"] }
+    ]
+  },
+  {
+    "id": 35,
+    "name": "Piazza to Mexico",
+    "shortName": "35",
+    "color": "#0ea5e9",
+    "type": "bus",
+    "description": "Addis Ababa City Bus",
+    "stops": [
+      { "id": "stop-12", "name": "Piazza", "lat": 9.0154, "lng": 38.7736, "nextArrivals": ["3 min", "13 min", "23 min"] },
+      { "id": "stop-13", "name": "Mexico Square", "lat": 9.0085, "lng": 38.7460, "nextArrivals": ["8 min", "18 min", "28 min"] }
+    ]
+  }
+]

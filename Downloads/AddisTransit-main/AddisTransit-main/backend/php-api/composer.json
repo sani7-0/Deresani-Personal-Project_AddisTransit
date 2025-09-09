@@ -1,0 +1,17 @@
+{
+    "name": "transit-app/api",
+    "description": "Transit API Backend",
+    "type": "project",
+    "require": {
+        "php": ">=8.0"
+    },
+    "require-dev": {},
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    },
+    "scripts": {
+        "start": "php -S 0.0.0.0:8000 -t public"
+    }
+}

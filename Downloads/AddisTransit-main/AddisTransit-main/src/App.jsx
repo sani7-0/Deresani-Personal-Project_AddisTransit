@@ -1,0 +1,80 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom"
+import ErrorBoundary from "./components/ErrorBoundary"
+
+import MapPage from "./pages/MapPage"
+import TripPlannerPage from "./pages/TripPlannerPage"
+import NearbyPage from "./pages/NearbyPage"
+import FavoritesPage from "./pages/FavoritesPage"
+import AlertsPage from "./pages/AlertsPage"
+import SettingsPage from "./pages/SettingsPage"
+
+function App() {
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem("transit-dark-mode")
+    if (saved !== null) {
+      return JSON.parse(saved)
+    }
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+  })
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add("dark")
+    } else {
+      document.documentElement.classList.remove("dark")
+    }
+    localStorage.setItem("transit-dark-mode", JSON.stringify(darkMode))
+  }, [darkMode])
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
+    const handleChange = (e) => {
+      const saved = localStorage.getItem("transit-dark-mode")
+      if (saved === null) {
+        setDarkMode(e.matches)
+      }
+    }
+
+    mediaQuery.addEventListener("change", handleChange)
+    return () => mediaQuery.removeEventListener("change", handleChange)
+  }, [])
+
+  return (
+    <ErrorBoundary>
+      <Router>
+        <div className="h-screen w-screen overflow-hidden bg-gray-50 dark:bg-gray-900 flex">
+          <div className="flex-1 flex flex-col">
+            <Routes>
+              <Route path="/" element={<MapPage darkMode={darkMode} setDarkMode={setDarkMode} />} />
+              <Route
+                path="/trip-planner"
+                element={<TripPlannerPage darkMode={darkMode} setDarkMode={setDarkMode} />}
+              />
+              <Route
+                path="/nearby"
+                element={<NearbyPage darkMode={darkMode} setDarkMode={setDarkMode} />}
+              />
+              <Route
+                path="/favorites"
+                element={<FavoritesPage darkMode={darkMode} setDarkMode={setDarkMode} />}
+              />
+              <Route
+                path="/alerts"
+                element={<AlertsPage darkMode={darkMode} setDarkMode={setDarkMode} />}
+              />
+              <Route
+                path="/settings"
+                element={<SettingsPage darkMode={darkMode} setDarkMode={setDarkMode} />}
+              />
+            </Routes>
+          </div>
+        </div>
+      </Router>
+    </ErrorBoundary>
+  )
+}
+
+export default App

@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: addis-transit-frontend
+    env: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        value: https://addis-transit-backend.onrender.com
+      - key: VITE_MAPBOX_ACCESS_TOKEN
+        value: pk.eyJ1IjoieW91cnVzZXJuYW1lIiwiYSI6ImNsZXhhbXBsZTAwMDAwMDB4ZXhhbXBsZSJ9.yourtokenhere
+
+  - type: web
+    name: addis-transit-backend
+    env: php
+    buildCommand: composer install
+    startCommand: php -S 0.0.0.0:$PORT -t public
+    envVars:
+      - key: DB_HOST
+        value: your_postgres_host
+      - key: DB_NAME
+        value: transit_db
+      - key: DB_USER
+        value: your_db_user
+      - key: DB_PASS
+        value: your_db_password
+      - key: DB_PORT
+        value: 5432
