@@ -1,0 +1,273 @@
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+@import "mapbox-gl/dist/mapbox-gl.css";
+@import url('https://fonts.googleapis.com/css2?family=Geist+Sans:wght@400;700&family=Geist+Mono&display=swap');
+
+
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+
+:root {
+  --font-sans: 'Geist Sans', sans-serif;
+  --font-mono: 'Geist Mono', monospace;
+}
+
+html {
+  font-family: var(--font-sans);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    /* Added smooth transitions for dark mode */
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    /* Prevent horizontal scroll on mobile */
+    overflow-x: hidden;
+  }
+
+  /* Added focus styles for accessibility */
+  *:focus {
+    @apply outline-none ring-2 ring-primary-500 ring-opacity-50 ring-offset-2 ring-offset-white dark:ring-offset-gray-900;
+  }
+
+  /* Improved button focus styles */
+  button:focus {
+    @apply outline-none ring-2 ring-primary-500 ring-opacity-50 ring-offset-2 ring-offset-white dark:ring-offset-gray-900;
+  }
+
+  /* Input focus styles */
+  input:focus {
+    @apply outline-none ring-2 ring-primary-500 ring-opacity-50 ring-offset-0;
+  }
+}
+
+@layer components {
+  .transit-shadow {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+    /* Added dark mode shadow */
+  }
+
+  .transit-shadow-dark {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  }
+
+  .transit-shadow-lg {
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  }
+
+  .transit-shadow-lg-dark {
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  }
+
+  .glass-effect {
+    @apply bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50;
+    /* Enhanced glass effect with better backdrop blur */
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
+  }
+
+  .glass-effect-strong {
+    @apply bg-white/90 dark:bg-gray-900/90 backdrop-blur-lg border border-gray-200/60 dark:border-gray-700/60;
+    backdrop-filter: blur(16px) saturate(200%);
+    -webkit-backdrop-filter: blur(16px) saturate(200%);
+  }
+
+  .transit-gradient {
+    background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+  }
+
+  /* Added loading skeleton animation */
+  .skeleton {
+    @apply bg-gray-200 dark:bg-gray-700 animate-pulse rounded;
+  }
+
+  /* Added smooth hover transitions */
+  .hover-lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Enhanced button styles */
+  .btn-primary {
+    @apply bg-primary-600 hover:bg-primary-700 text-white font-medium px-4 py-2 rounded-lg transition-colors focus:ring-2 focus:ring-primary-500 focus:ring-opacity-50;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100 font-medium px-4 py-2 rounded-lg transition-colors;
+  }
+
+  /* Added status indicators */
+  .status-online {
+    @apply bg-green-500 animate-pulse;
+  }
+
+  .status-offline {
+    @apply bg-red-500;
+  }
+
+  .status-warning {
+    @apply bg-yellow-500;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100 dark:bg-gray-800;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 dark:bg-gray-600 rounded-full;
+  /* Added smooth transitions */
+  transition: background-color 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400 dark:bg-gray-500;
+}
+
+/* Firefox scrollbar support */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(209 213 219) rgb(243 244 246);
+}
+
+.dark * {
+  scrollbar-color: rgb(75 85 99) rgb(31 41 55);
+}
+
+/* Mapbox overrides */
+.mapboxgl-popup-content {
+  @apply rounded-lg shadow-lg border-0 p-0 bg-white dark:bg-gray-800;
+  /* Enhanced popup styling */
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.dark .mapboxgl-popup-content {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+}
+
+.mapboxgl-popup-anchor-bottom .mapboxgl-popup-tip {
+  @apply border-t-white dark:border-t-gray-800;
+}
+
+.mapboxgl-popup-anchor-top .mapboxgl-popup-tip {
+  @apply border-b-white dark:border-b-gray-800;
+}
+
+.mapboxgl-popup-anchor-left .mapboxgl-popup-tip {
+  @apply border-r-white dark:border-r-gray-800;
+}
+
+.mapboxgl-popup-anchor-right .mapboxgl-popup-tip {
+  @apply border-l-white dark:border-l-gray-800;
+}
+
+/* Enhanced mapbox control styling */
+.mapboxgl-ctrl-group {
+  @apply rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden;
+}
+
+.mapboxgl-ctrl-group button {
+  @apply bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border-gray-200 dark:border-gray-700;
+  transition: background-color 0.2s ease;
+}
+
+.mapboxgl-ctrl-group button:hover {
+  @apply bg-gray-50 dark:bg-gray-700;
+}
+
+/* Mobile-specific optimizations */
+@media (max-width: 768px) {
+  .glass-effect {
+    backdrop-filter: blur(8px) saturate(150%);
+    -webkit-backdrop-filter: blur(8px) saturate(150%);
+  }
+
+  /* Prevent zoom on input focus */
+  input[type="text"],
+  input[type="search"],
+  input[type="email"],
+  input[type="tel"] {
+    font-size: 16px;
+  }
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .glass-effect {
+    @apply bg-white dark:bg-gray-900 border-2 border-gray-900 dark:border-gray-100;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    @apply bg-white text-black;
+  }
+}
+
+/* Loading animation keyframes */
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+.dark .shimmer {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+}
+
+/* Enhanced selection styles */
+::selection {
+  @apply bg-primary-200 dark:bg-primary-800 text-primary-900 dark:text-primary-100;
+}
+
+::-moz-selection {
+  @apply bg-primary-200 dark:bg-primary-800 text-primary-900 dark:text-primary-100;
+}
