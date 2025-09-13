@@ -6,7 +6,7 @@ const BusMarker = ({ bus, route, onClick, isSelected }) => {
   return (
     <Marker longitude={bus.lng} latitude={bus.lat}>
       <motion.div
-        className="relative cursor-pointer"
+        className="relative cursor-pointer group"
         initial={{ scale: 0, rotate: -180 }}
         animate={{
           scale: isSelected ? 1.2 : 1,
@@ -22,11 +22,13 @@ const BusMarker = ({ bus, route, onClick, isSelected }) => {
         }}
         layout
         onClick={onClick}
+        title={`Click to view details for ${route?.shortName || 'Bus'} ${bus.vehicle_number || bus.id}`}
       >
         {/* Bus icon container */}
         <motion.div
-          className={`w-12 h-12 rounded-xl shadow-xl border-2 border-white flex items-center justify-center relative ${isSelected ? "ring-2 ring-white ring-opacity-50" : ""
-            }`}
+          className={`w-12 h-12 rounded-xl shadow-xl border-2 border-white flex items-center justify-center relative transition-all duration-200 ${
+            isSelected ? "ring-2 ring-white ring-opacity-50" : ""
+          } group-hover:shadow-2xl group-hover:scale-105`}
           style={{ backgroundColor: route?.color || "#0ea5e9" }}
           animate={{
             boxShadow: isSelected

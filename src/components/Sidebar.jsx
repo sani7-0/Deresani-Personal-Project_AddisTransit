@@ -144,7 +144,7 @@ const Sidebar = ({ isOpen, onToggle, selectedRoute, onRouteSelect }) => {
         }}
         style={{ overflow: "auto" }}
       >
-        <div className="w-80 h-full flex flex-col">
+        <div className="w-full h-full flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-6 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center space-x-4">
