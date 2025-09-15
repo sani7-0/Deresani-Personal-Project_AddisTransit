@@ -1,15 +1,18 @@
 <?php
-// Database connection for PostgreSQL
-// Update these values to match your PostgreSQL setup
+// Database connection for PostgreSQL (reads from environment variables in production)
+// Local defaults are provided for developer machines
 
-$host = 'localhost';
-$port = '5432';
-$dbname = 'transit';
-$username = 'postgres';
-$password = 'felonynumber1'; // Change this to your PostgreSQL password
+$host = getenv('DB_HOST') ?: 'localhost';
+$port = getenv('DB_PORT') ?: '5432';
+$dbname = getenv('DB_NAME') ?: 'transit';
+$username = getenv('DB_USER') ?: 'postgres';
+$password = getenv('DB_PASS') ?: 'felonynumber1';
+
+// SSL mode (Render Managed Postgres typically requires 'require')
+$sslmode = getenv('DB_SSLMODE') ?: 'prefer';
 
 try {
-    $dsn = "pgsql:host=$host;port=$port;dbname=$dbname";
+    $dsn = "pgsql:host=$host;port=$port;dbname=$dbname;sslmode=$sslmode";
     $pdo = new PDO($dsn, $username, $password, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,

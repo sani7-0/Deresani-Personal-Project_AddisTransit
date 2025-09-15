@@ -44,7 +44,7 @@ RUN echo '<VirtualHost *:80>\n\
     # API routes\n\
     RewriteEngine On\n\
     RewriteCond %{REQUEST_URI} ^/(routes|stops|buses|alerts|feedback|admin|trip|health|debug)\n\
-    RewriteRule ^(.*)$ /index.php [QSA,L]\n\
+    RewriteRule ^(.*)$ /public/index.php [QSA,L]\n\
     \n\
     # React routing for all other routes\n\
     RewriteCond %{REQUEST_FILENAME} !-f\n\
