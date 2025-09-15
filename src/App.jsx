@@ -16,6 +16,7 @@ import AlertsPage from "./pages/AlertsPage"
 import SettingsPage from "./pages/SettingsPage"
 import AboutPage from "./pages/AboutPage"
 import CoordinatorInterface from "./components/CoordinatorInterface"
+import DriverDashboard from "./components/DriverDashboard"
 
 function App() {
   const [darkMode, setDarkMode] = useState(() => {
@@ -60,6 +61,7 @@ function App() {
               <Route path="/admin/login" element={<AdminLoginPage />} />
               <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
               <Route path="/coordinator" element={<CoordinatorInterface />} />
+              <Route path="/driver" element={<DriverDashboard />} />
               <Route path="/about" element={<AboutPage />} />
               <Route
                 path="/trip-planner"

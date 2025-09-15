@@ -5,11 +5,11 @@ import MapGL, { Marker, Popup, Source, Layer } from "@urbica/react-map-gl"
 import { RotateCcw, Loader2, Route, Zap, RefreshCw, Settings, Plus, Minus } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import BusMarker from "./BusMarker"
-import { fetchRoutesWithStops, fetchBuses, fetchEthiopianBuses, fetchBusesForRoute, getSimulationStatus, addBusToRoute, removeBus, openBusesSSE, fetchRouteGeometry, getSnappedRoute, getSnappedRouteOSRM, fetchBusStatus, fetchNearbyStops } from "../lib/api"
+import { fetchRoutesWithStops, fetchBuses, fetchEthiopianBuses, fetchBusesForRoute, getSimulationStatus, addBusToRoute, removeBus, openBusesSSE, fetchRouteGeometry, getSnappedRoute, getSnappedRouteOSRM, fetchBusStatus, fetchNearbyStops, fetchAlerts } from "../lib/api"
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN
 
-const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapClick }) => {
+const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapClick, selectedBus, onBusSelect }) => {
   const mapRef = useRef()
   const [viewState, setViewState] = useState({
     longitude: 38.7636, // Addis Ababa longitude
@@ -19,7 +19,6 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
   const [buses, setBuses] = useState([])
   const [routes, setRoutes] = useState([])
   const [routeGeometries, setRouteGeometries] = useState([])
-  const [selectedBus, setSelectedBus] = useState(null)
   const [mapStyle, setMapStyle] = useState("mapbox://styles/mapbox/light-v11")
   const [isLoading, setIsLoading] = useState(true)
   const [isRecentering, setIsRecentering] = useState(false)
@@ -34,6 +33,7 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
   const [mapLoaded, setMapLoaded] = useState(false)
   const [nearbyStops, setNearbyStops] = useState([])
   const [circleRadius, setCircleRadius] = useState(10000) // 10km radius in meters
+  const [alerts, setAlerts] = useState([])
 
   // Update map style based on dark mode
   useEffect(() => {
@@ -57,18 +57,90 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
   }, [])
 
   // Load routes and buses from API
+  // Function to fetch alerts
+  const loadAlerts = async () => {
+    try {
+      const alertsData = await fetchAlerts()
+      setAlerts(alertsData || [])
+      console.log('Loaded alerts:', alertsData)
+    } catch (error) {
+      console.error('Failed to load alerts:', error)
+    }
+  }
+
+  // Function to get alerts for a specific bus/route
+  const getAlertsForBus = (bus) => {
+    if (!bus || !alerts.length) {
+      console.log('No alerts available:', { bus: !!bus, alertsLength: alerts.length })
+      return []
+    }
+    
+    const routeId = bus.route_id || bus.routeId
+    const route = routes.find(r => r.id === routeId)
+    const routeNumber = route?.route_number
+    
+    console.log('Checking alerts for bus:', { 
+      routeId, 
+      routeNumber, 
+      totalAlerts: alerts.length,
+      alerts: alerts.map(a => ({ id: a.id, affected_routes: a.affected_routes, is_active: a.is_active }))
+    })
+    
+    const filteredAlerts = alerts.filter(alert => {
+      // Check if alert affects this route by route number
+      const affectsRoute = alert.affected_routes && (
+        alert.affected_routes.includes(String(routeNumber)) ||
+        alert.affected_routes.includes(routeNumber)
+      )
+      
+      // Check if alert is active
+      const isActive = alert.is_active !== false
+      
+      console.log('Alert check:', { 
+        alertId: alert.id, 
+        affectsRoute, 
+        isActive, 
+        affected_routes: alert.affected_routes,
+        routeId,
+        routeNumber
+      })
+      
+      return affectsRoute && isActive
+    })
+    
+    console.log('Filtered alerts for bus:', filteredAlerts)
+    return filteredAlerts
+  }
+
   // Function to create road-snapped geometry for database routes only
   const createSnappedRouteGeometry = async (routes, useSnapping = true) => {
     const snappedGeometries = []
     
+    console.log(`Processing ${routes.length} routes for road snapping...`)
+    console.log('Route data sample:', routes.slice(0, 2))
+    
     // Only process routes that exist in the database and have valid stops
     for (const route of routes) {
+      console.log(`Processing route ${route.id}:`, {
+        hasStops: !!route.stops,
+        stopsLength: route.stops?.length,
+        hasId: !!route.id,
+        hasShortName: !!route.short_name,
+        hasName: !!route.name,
+        hasColor: !!route.color,
+        color: route.color
+      })
+      
       // Ensure route has valid stops data from database
       if (route.stops && route.stops.length >= 2 && route.id) {
         // Verify this is a real database route by checking if it has required fields
         const isDatabaseRoute = route.id && route.short_name && route.name && route.color
         
-        if (isDatabaseRoute) {
+        // Validate that the color is one of the expected database colors
+        const validColors = ['#FF0000', '#00BFFF', '#0000FF', '#00FF00', '#FFD700'] // Red, Light Blue, Blue, Green, Gold
+        const hasValidColor = validColors.includes(route.color)
+        
+        if (isDatabaseRoute && hasValidColor) {
           if (useSnapping) {
             try {
               // Extract coordinates from database stops
@@ -83,7 +155,7 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
                 snappedGeometries.push({
                   route_id: route.id,
                   geometry: snappedGeometry.geometry,
-                  color: route.color,
+                  color: route.color, // Use only the database color
                   properties: snappedGeometry.properties
                 })
                 
@@ -97,7 +169,7 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
                     type: "LineString",
                     coordinates: route.stops.map(stop => [parseFloat(stop.lng), parseFloat(stop.lat)])
                   },
-                  color: route.color
+                  color: route.color // Use only the database color
                 })
               }
             } catch (error) {
@@ -109,7 +181,7 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
                   type: "LineString",
                   coordinates: route.stops.map(stop => [parseFloat(stop.lng), parseFloat(stop.lat)])
                 },
-                color: route.color
+                color: route.color // Use only the database color
               })
             }
           } else {
@@ -120,9 +192,11 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
                 type: "LineString",
                 coordinates: route.stops.map(stop => [parseFloat(stop.lng), parseFloat(stop.lat)])
               },
-              color: route.color
+              color: route.color // Use only the database color
             })
           }
+        } else if (isDatabaseRoute && !hasValidColor) {
+          console.warn(`Skipping route ${route.id} - invalid color: ${route.color}. Expected one of: ${validColors.join(', ')}`)
         } else {
           console.warn(`Skipping non-database route: ${route.id} - missing required database fields`)
         }
@@ -138,13 +212,29 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [routesData, busesData] = await Promise.all([
+        const [routesData, busesData, alertsData] = await Promise.all([
           fetchRoutesWithStops(),
-          fetchBusStatus() // Use database buses instead of simulation
+          fetchBusStatus(), // Use database buses instead of simulation
+          fetchAlerts()
         ])
         
         setRoutes(routesData)
         setBuses(busesData)
+        setAlerts(alertsData || [])
+        
+        console.log('Loaded data:', {
+          routes: routesData.length,
+          buses: busesData.length,
+          alerts: (alertsData || []).length,
+          alertsData: alertsData
+        })
+        
+        // Debug alerts specifically
+        if (alertsData && alertsData.length > 0) {
+          console.log('Alerts loaded successfully:', alertsData)
+        } else {
+          console.warn('No alerts loaded or alerts is empty')
+        }
         
         // Create road-snapped geometries for database routes only
         console.log(`Creating ${useRoadSnapping ? 'road-snapped' : 'straight-line'} geometries for database routes...`)
@@ -157,6 +247,7 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
         setRoutes([])
         setBuses([])
         setRouteGeometries([])
+        setAlerts([])
         setIsLoading(false)
       }
     }
@@ -205,9 +296,10 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
 
           // Also try using mapRef as a fallback
           setTimeout(() => {
-            if (mapRef.current) {
+            if (mapRef.current && mapRef.current.getMap) {
               console.log('Using mapRef to center on location')
-              mapRef.current.flyTo({
+              const map = mapRef.current.getMap()
+              map.flyTo({
                 center: [longitude, latitude],
                 zoom: 15,
                 duration: 2000,
@@ -250,9 +342,10 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
   }, [])
 
   const handleRecenter = useCallback(() => {
-    if (mapRef.current && !isRecentering) {
+    if (mapRef.current && mapRef.current.getMap && !isRecentering) {
       setIsRecentering(true)
-      mapRef.current.flyTo({
+      const map = mapRef.current.getMap()
+      map.flyTo({
         center: [38.7636, 9.0054], // Addis Ababa
         zoom: 13,
         duration: 1200,
@@ -284,8 +377,9 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
         setIsLocating(false)
         
         // Center map on user location
-        if (mapRef.current) {
-          mapRef.current.flyTo({
+        if (mapRef.current && mapRef.current.getMap) {
+          const map = mapRef.current.getMap()
+          map.flyTo({
             center: [longitude, latitude],
             zoom: 15,
             duration: 1500,
@@ -363,21 +457,25 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
 
   const handleBusClick = useCallback(
     (bus) => {
-      setSelectedBus(bus)
+      if (onBusSelect) {
+        onBusSelect(bus)
+      }
+      
       const route = routes.find((r) => r.id === bus.route_id)
       if (route && onRouteSelect) {
         onRouteSelect(route)
       }
 
-      if (mapRef.current) {
-        mapRef.current.flyTo({
+      if (mapRef.current && mapRef.current.getMap) {
+        const map = mapRef.current.getMap()
+        map.flyTo({
           center: [bus.lng, bus.lat],
           zoom: Math.max(viewState.zoom, 15),
           duration: 800,
         })
       }
     },
-    [onRouteSelect, viewState.zoom, routes]
+    [onBusSelect, onRouteSelect, viewState.zoom, routes]
   )
 
   const filteredBuses = selectedRoute ? buses.filter((bus) => String(bus.route_id) === String(selectedRoute.id)) : buses
@@ -438,7 +536,7 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
                 type="line"
                 source={`route-line-${routeGeom.route_id}`}
                 paint={{
-                  "line-color": routeGeom.color,
+                  "line-color": routeGeom.color, // Use only database color
                   "line-width": selectedRoute?.id === routeGeom.route_id ? 6 : 4,
                   "line-opacity": selectedRoute?.id === routeGeom.route_id ? 1 : 0.6,
                 }}
@@ -480,137 +578,6 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
           ))}
         </AnimatePresence>
 
-        {/* Enhanced Bus Details Popup */}
-        <AnimatePresence>
-          {selectedBus && (
-            <Popup
-              longitude={selectedBus.lng}
-              latitude={selectedBus.lat}
-              anchor="bottom"
-              onClose={() => setSelectedBus(null)}
-              closeButton={true}
-              closeOnClick={false}
-            >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.8, y: 10 }}
-                className="p-4 min-w-[280px] max-w-[320px] bg-green-50 dark:bg-green-900/20 rounded-2xl border border-green-200 dark:border-green-800 shadow-xl"
-              >
-                {/* Header */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center space-x-3">
-                    <div
-                      className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm"
-                      style={{ backgroundColor: routes.find((r) => r.id === selectedBus.route_id)?.color || '#3b82f6' }}
-                    >
-                      {routes.find((r) => r.id === selectedBus.route_id)?.shortName || 'BUS'}
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900 dark:text-gray-100 text-lg">
-                        {routes.find((r) => r.id === selectedBus.route_id)?.name || 'Unknown Route'}
-                      </h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Route #{selectedBus.route_id || selectedBus.routeId}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Bus Information - Compact Grid */}
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  {/* Plate Number */}
-                  <div className="bg-green-100 dark:bg-green-800/30 rounded-xl p-3">
-                    <div className="text-xs text-green-600 dark:text-green-400 mb-1">Plate Number</div>
-                    <div className="text-sm font-bold text-green-900 dark:text-green-100">
-                      {selectedBus.plate_number || selectedBus.vehicle_number || 'N/A'}
-                    </div>
-                  </div>
-
-                  {/* Bus Number */}
-                  <div className="bg-green-100 dark:bg-green-800/30 rounded-xl p-3">
-                    <div className="text-xs text-green-600 dark:text-green-400 mb-1">Bus Number</div>
-                    <div className="text-sm font-bold text-green-900 dark:text-green-100">
-                      #{selectedBus.bus_number || selectedBus.id || 'N/A'}
-                    </div>
-                  </div>
-
-                  {/* Route Number */}
-                  <div className="bg-green-100 dark:bg-green-800/30 rounded-xl p-3">
-                    <div className="text-xs text-green-600 dark:text-green-400 mb-1">Route Number</div>
-                    <div className="text-sm font-bold text-green-900 dark:text-green-100">
-                      #{selectedBus.route_id || selectedBus.routeId || 'N/A'}
-                    </div>
-                  </div>
-
-                  {/* Route Name */}
-                  <div className="bg-green-100 dark:bg-green-800/30 rounded-xl p-3">
-                    <div className="text-xs text-green-600 dark:text-green-400 mb-1">Route Name</div>
-                    <div className="text-sm font-bold text-green-900 dark:text-green-100 truncate">
-                      {routes.find((r) => r.id === selectedBus.route_id)?.name || 'Unknown Route'}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Passenger Count - Full Width */}
-                <div className="bg-green-100 dark:bg-green-800/30 rounded-xl p-3 mb-4">
-                  <div className="flex justify-between items-center mb-2">
-                    <div className="text-xs text-green-600 dark:text-green-400">Passengers on Bus</div>
-                    <div className="text-xs text-green-600 dark:text-green-400">
-                      {Math.round(((selectedBus.passengers || 0) / (selectedBus.max_capacity || 50)) * 100)}% full
-                    </div>
-                  </div>
-                  <div className="text-lg font-bold text-green-900 dark:text-green-100 mb-2">
-                    {selectedBus.passengers || 0} / {selectedBus.max_capacity || 50}
-                  </div>
-                  <div className="w-full bg-green-200 dark:bg-green-700 rounded-full h-2">
-                    <div
-                      className={`h-2 rounded-full transition-all duration-300 ${
-                        ((selectedBus.passengers || 0) / (selectedBus.max_capacity || 50)) < 0.5 ? 'bg-green-500' :
-                        ((selectedBus.passengers || 0) / (selectedBus.max_capacity || 50)) < 0.8 ? 'bg-yellow-500' : 'bg-red-500'
-                      }`}
-                      style={{ width: `${Math.min(((selectedBus.passengers || 0) / (selectedBus.max_capacity || 50)) * 100, 100)}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* ETA - Full Width */}
-                <div className="bg-green-100 dark:bg-green-800/30 rounded-xl p-3">
-                  <div className="text-xs text-green-600 dark:text-green-400 mb-1">ETA to Next Stop</div>
-                  <div className="text-lg font-bold text-green-700 dark:text-green-300">
-                    {selectedBus.eta || 'Unknown'}
-                  </div>
-                  {selectedBus.next_stop && (
-                    <div className="text-sm text-green-600 dark:text-green-400 mt-1">
-                      Next: {selectedBus.next_stop}
-                    </div>
-                  )}
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex space-x-2 mt-4">
-                  <button
-                    onClick={() => {
-                      const route = routes.find((r) => r.id === selectedBus.route_id)
-                      if (route && onRouteSelect) {
-                        onRouteSelect(route)
-                      }
-                    }}
-                    className="flex-1 bg-green-500 hover:bg-green-600 text-white text-sm font-medium py-2 px-4 rounded-xl transition-colors"
-                  >
-                    View Route Details
-                  </button>
-                  <button
-                    onClick={() => setSelectedBus(null)}
-                    className="px-4 py-2 text-sm font-medium text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200 transition-colors rounded-xl"
-                  >
-                    Close
-                  </button>
-                </div>
-              </motion.div>
-            </Popup>
-          )}
-        </AnimatePresence>
 
         {/* User location circle and marker */}
         {userLocation && (

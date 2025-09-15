@@ -9,6 +9,7 @@ import DarkModeToggle from "../components/DarkModeToggle"
 const MapPage = ({ darkMode, setDarkMode }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [selectedRoute, setSelectedRoute] = useState(null)
+  const [selectedBus, setSelectedBus] = useState(null)
 
   // If navigated via TopBar "Map" button, ensure sidebar opens
   useEffect(() => {
@@ -60,13 +61,20 @@ const MapPage = ({ darkMode, setDarkMode }) => {
           onToggle={() => setSidebarOpen(!sidebarOpen)}
           selectedRoute={selectedRoute}
           onRouteSelect={setSelectedRoute}
+          selectedBus={selectedBus}
+          onBusSelect={setSelectedBus}
         />
       </div>
 
       {/* Main Map Container */}
       <div className={`h-full transition-all duration-300 ${sidebarOpen ? "ml-[400px]" : "ml-0"}`}>
         {/* Map */}
-        <MapView selectedRoute={selectedRoute} onRouteSelect={setSelectedRoute} />
+        <MapView 
+          selectedRoute={selectedRoute} 
+          onRouteSelect={setSelectedRoute}
+          selectedBus={selectedBus}
+          onBusSelect={setSelectedBus}
+        />
 
         {/* Dark Mode Toggle */}
         <div className="absolute top-4 right-4 z-10">

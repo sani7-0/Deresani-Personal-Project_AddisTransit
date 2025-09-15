@@ -3,11 +3,12 @@ import { fetchFeedbacks } from "../lib/api"
 import forecastsUrl from "../../addis_bus_forecast_sep2025_timeslot_holidays.csv?url"
 import { useNavigate } from "react-router-dom"
 import TopBar from "../components/TopBar"
-import { BarChart2, Users, Map, AlertTriangle, LogOut } from "lucide-react"
+import FleetManagement from "../components/FleetManagement"
+import { BarChart2, Users, Map, AlertTriangle, LogOut, Bus } from "lucide-react"
 
 export default function AdminDashboardPage() {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState('ai') // 'ai' | 'feedbacks'
+  const [activeTab, setActiveTab] = useState('ai') // 'ai' | 'feedbacks' | 'fleet'
   const [feedbacks, setFeedbacks] = useState([])
   const [loadingFeedbacks, setLoadingFeedbacks] = useState(false)
   const [forecasts, setForecasts] = useState([])
@@ -146,6 +147,12 @@ export default function AdminDashboardPage() {
               >
                 User Feedbacks
               </button>
+              <button
+                onClick={() => setActiveTab('fleet')}
+                className={`w-full text-left px-3 py-2 rounded-xl transition-colors ${activeTab === 'fleet' ? 'bg-emerald-600 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200'}`}
+              >
+                Fleet Management
+              </button>
             </nav>
           </aside>
 
@@ -283,6 +290,10 @@ export default function AdminDashboardPage() {
                   </table>
                 </div>
               </div>
+            )}
+
+            {activeTab === 'fleet' && (
+              <FleetManagement />
             )}
           </main>
         </div>

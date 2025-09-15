@@ -7,10 +7,22 @@ const safeFetch = async (path, options = {}, retries = 5) => {
   
   for (let i = 0; i < retries; i++) {
     try {
-      const res = await fetch(`${baseUrl}${path}`, options);
+      const headers = new Headers(options.headers || {});
+      try {
+        const token = localStorage.getItem('admin_token');
+        if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
+      } catch {}
+      const res = await fetch(`${baseUrl}${path}`, { ...options, headers });
       if (!res.ok) {
-        // Do not retry on client errors (e.g., 401 Unauthorized)
-        const err = new Error(`HTTP ${res.status}`);
+        // Try to extract server error details
+        let serverError = `HTTP ${res.status}`;
+        try {
+          const errBody = await res.json();
+          if (errBody && (errBody.error || errBody.message)) {
+            serverError = `${serverError}: ${errBody.error || errBody.message}`;
+          }
+        } catch {}
+        const err = new Error(serverError);
         if (res.status >= 400 && res.status < 500) {
           throw err; // immediate fail for 4xx
         }
@@ -292,4 +304,40 @@ export const resetBusCount = (plateNumber) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ plateNumber })
   });
+};
+
+// Fleet Management: Send reroute command to driver
+export const sendRerouteCommand = (busId, destination, reason = 'High passenger demand detected', priority = 'medium') => {
+  return safeFetch('/fleet/reroute', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bus_id: busId, destination, reason, priority })
+  });
+};
+
+// Fleet Management: Reroute by target route id
+export const sendRerouteToRoute = (busId, targetRouteId, reason = 'Move bus to congested route', priority = 'medium', plateNumber = null, targetRouteShortName = null, targetRouteName = null) => {
+  return safeFetch('/fleet/reroute', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      bus_id: busId,
+      plate_number: plateNumber,
+      target_route_id: targetRouteId,
+      target_route_short_name: targetRouteShortName,
+      target_route_name: targetRouteName,
+      reason,
+      priority
+    })
+  });
+};
+
+// Fleet Management: Get AI congestion predictions
+export const fetchCongestionData = () => {
+  return safeFetch('/fleet/congestion');
+};
+
+// Route-level congestion (DB)
+export const fetchRouteCongestion = () => {
+  return safeFetch('/fleet/congestion/routes');
 };

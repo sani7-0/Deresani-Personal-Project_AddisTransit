@@ -6,9 +6,9 @@ import { Menu, X, Search, Navigation, Clock, Users, ArrowUpDown, History, Home }
 import RouteCard from "./RouteCard"
 import { useEffect as useEffectReact } from "react"
 import { useNavigate } from "react-router-dom"
-import { fetchRoutesWithStops, fetchEthiopianBuses, fetchBusStatus } from "../lib/api"
+import { fetchRoutesWithStops, fetchEthiopianBuses, fetchBusStatus, fetchAlerts } from "../lib/api"
 
-const Sidebar = ({ isOpen, onToggle, selectedRoute, onRouteSelect }) => {
+const Sidebar = ({ isOpen, onToggle, selectedRoute, onRouteSelect, selectedBus, onBusSelect }) => {
   const navigate = useNavigate()
   const [fromLocation, setFromLocation] = useState("Current location")
   const [toLocation, setToLocation] = useState("")
@@ -48,6 +48,7 @@ const Sidebar = ({ isOpen, onToggle, selectedRoute, onRouteSelect }) => {
   // Get live bus data from simulation
   const [activeByRoute, setActiveByRoute] = useState({})
   const [busStatusData, setBusStatusData] = useState([])
+  const [alerts, setAlerts] = useState([])
   const getRouteBusData = (routeId) => activeByRoute[routeId] || { activeBuses: 0, nextArrival: "--" }
   
   // Get bus status data (passenger counts, capacity, status)
@@ -82,6 +83,16 @@ const Sidebar = ({ isOpen, onToggle, selectedRoute, onRouteSelect }) => {
   useEffectReact(() => {
     fetchRoutesWithStops().then(setNearbyRoutes).catch(() => setNearbyRoutes([]))
     
+    // Fetch alerts
+    const loadAlerts = async () => {
+      try {
+        const alertsData = await fetchAlerts()
+        setAlerts(alertsData || [])
+      } catch (error) {
+        console.error('Failed to fetch alerts:', error)
+      }
+    }
+    
     // Fetch bus status data (passenger counts, capacity, status)
     const loadBusStatus = async () => {
       try {
@@ -92,8 +103,11 @@ const Sidebar = ({ isOpen, onToggle, selectedRoute, onRouteSelect }) => {
       }
     }
     
-    // Load bus status immediately and then every 30 seconds
+    // Load alerts and bus status immediately
+    loadAlerts()
     loadBusStatus()
+    
+    // Load bus status every 30 seconds
     const statusInterval = setInterval(loadBusStatus, 30000)
     
     // Keep the simulation data for bus positions
@@ -301,7 +315,204 @@ const Sidebar = ({ isOpen, onToggle, selectedRoute, onRouteSelect }) => {
 
           {/* Content Area */}
           <div className="flex-1 overflow-y-auto">
-            {selectedRoute ? (
+            {selectedBus ? (
+              /* Selected Bus Details - Using Route Layout */
+              <div className="px-4 py-6">
+                <div className="flex items-center justify-between mb-4">
+                  <button
+                    onClick={() => onBusSelect(null)}
+                    className="text-sm text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-colors"
+                  >
+                    ← Back to routes
+                  </button>
+                </div>
+
+                {/* Route Header */}
+                <div className="flex items-center space-x-3 mb-6">
+                  <div
+                    className="w-16 h-16 rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-sm"
+                    style={{ backgroundColor: selectedRoute?.color || '#3b82f6' }}
+                  >
+                    {selectedRoute?.shortName || 'BUS'}
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{selectedRoute?.name || 'Bus Details'}</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{selectedRoute?.description || `Route #${selectedBus.route_id || selectedBus.routeId}`}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <Clock className="w-5 h-5 text-green-600 dark:text-green-400" />
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Next Arrival</span>
+                    </div>
+                    <div className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+                      {typeof selectedBus.eta_minutes === 'number' ? selectedBus.eta_minutes : 'Unknown'}
+                    </div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">minutes</div>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-5">
+                    <div className="flex items-center space-x-2 mb-3">
+                      <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                      <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Active Buses</span>
+                    </div>
+                    <div className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+                      {getRouteBusData(selectedRoute?.id || selectedBus.route_id).activeBuses}
+                    </div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">buses</div>
+                  </div>
+                </div>
+
+                {/* Bus Status Section */}
+                <div className="mb-6">
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                    Bus Details
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-lg">🚌</span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {selectedBus.plate_number || selectedBus.vehicle_number || 'N/A'}
+                          </span>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          ((selectedBus.passengers || 0) / (selectedBus.max_capacity || 50)) < 0.5 ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' :
+                          ((selectedBus.passengers || 0) / (selectedBus.max_capacity || 50)) < 0.8 ? 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300' :
+                          'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300'
+                        }`}>
+                          {Math.round(((selectedBus.passengers || 0) / (selectedBus.max_capacity || 50)) * 100)}% full
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+                        <span>Passengers: {selectedBus.passengers || 0}/{selectedBus.max_capacity || 50}</span>
+                        <span>Bus #{selectedBus.bus_number || selectedBus.id || 'N/A'}</span>
+                      </div>
+                      {selectedBus.next_stop && (
+                        <div className="mt-2 text-sm text-gray-700 dark:text-gray-300">
+                          Next stop: <span className="font-medium">{selectedBus.next_stop}</span>
+                        </div>
+                      )}
+                      {/* Progress bar */}
+                      <div className="mt-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                        <div
+                          className={`h-2 rounded-full transition-all duration-300 ${
+                            ((selectedBus.passengers || 0) / (selectedBus.max_capacity || 50)) < 0.5 ? 'bg-green-500' :
+                            ((selectedBus.passengers || 0) / (selectedBus.max_capacity || 50)) < 0.8 ? 'bg-yellow-500' : 'bg-red-500'
+                          }`}
+                          style={{ width: `${Math.min(((selectedBus.passengers || 0) / (selectedBus.max_capacity || 50)) * 100, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bus-Specific Alerts removed per request */}
+
+                {/* Route Alerts Section */}
+                {(() => {
+                  // Mock route alerts
+                  const mockRouteAlerts = [
+                    {
+                      id: 'route-alert-1',
+                      title: 'Heavy Traffic on Route',
+                      description: 'Heavy traffic reported on this route. Expect delays of 10-15 minutes.',
+                      severity: 'medium',
+                      type: 'delay'
+                    },
+                    {
+                      id: 'route-alert-2',
+                      title: 'Construction Zone',
+                      description: 'Road construction near Meskel Square may cause minor delays.',
+                      severity: 'low',
+                      type: 'disruption'
+                    }
+                  ]
+                  
+                  return (
+                    <div className="mb-6">
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                        ⚠️ Route Alerts ({mockRouteAlerts.length})
+                      </h4>
+                      <div className="space-y-2">
+                        {mockRouteAlerts.map((alert, index) => (
+                          <div key={alert.id || index} className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="text-sm font-medium text-amber-900 dark:text-amber-100 mb-1">
+                                  {alert.title}
+                                </div>
+                                <div className="text-xs text-amber-700 dark:text-amber-300 mb-2">
+                                  {alert.description}
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <span className={`text-xs px-2 py-1 rounded-full ${
+                                    alert.severity === 'high' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' :
+                                    alert.severity === 'medium' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300' :
+                                    'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                                  }`}>
+                                    {alert.severity?.toUpperCase()}
+                                  </span>
+                                  <span className="text-xs text-amber-600 dark:text-amber-400">
+                                    {alert.type?.replace('_', ' ').toUpperCase()}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* Stops List */}
+                {selectedRoute?.stops && selectedRoute.stops.length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                      Route Stops ({selectedRoute.stops.length})
+                    </h4>
+                    <div className="space-y-3">
+                      {selectedRoute.stops.map((stop, index) => (
+                        <div key={stop.id} className="flex items-start space-x-3">
+                          <div className="relative mt-2">
+                            <div
+                              className="w-3 h-3 rounded-full border-2 border-white shadow-sm"
+                              style={{ backgroundColor: selectedRoute.color }}
+                            />
+                            {index < selectedRoute.stops.length - 1 && (
+                              <div
+                                className="absolute top-3 left-1/2 w-0.5 h-8 -translate-x-1/2"
+                                style={{ backgroundColor: selectedRoute.color, opacity: 0.3 }}
+                              />
+                            )}
+                          </div>
+                          <div className="flex-1 pb-4">
+                            <div className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">
+                              {stop.name}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              Stop #{stop.sequence} • {Number(stop.lat)?.toFixed(4)}, {Number(stop.lng)?.toFixed(4)}
+                            </div>
+                            {/* Mock arrival times for now */}
+                            <div className="flex flex-wrap gap-1 mt-2">
+                              <span className="text-xs px-2 py-1 rounded-full bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300">
+                                {Math.max(1, 2 + Math.floor(Math.random() * 6))} min
+                              </span>
+                              <span className="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                                {Math.max(8, 10 + Math.floor(Math.random() * 8))} min
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : selectedRoute ? (
               /* Selected Route Details */
               <div className="px-4 py-6">
                 <div className="flex items-center justify-between mb-4">
@@ -393,6 +604,58 @@ const Sidebar = ({ isOpen, onToggle, selectedRoute, onRouteSelect }) => {
                     </div>
                   </div>
                 )}
+
+                {/* Alerts Section */}
+                {(() => {
+                  // Get alerts for the selected route
+                  const routeAlerts = alerts.filter(alert => {
+                    const routeNumber = selectedRoute?.route_number
+                    const affectsRoute = alert.affected_routes && (
+                      alert.affected_routes.includes(String(routeNumber)) ||
+                      alert.affected_routes.includes(routeNumber)
+                    )
+                    const isActive = alert.is_active !== false
+                    return affectsRoute && isActive
+                  })
+                  
+                  if (routeAlerts.length === 0) return null
+                  
+                  return (
+                    <div className="mb-6">
+                      <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">
+                        ⚠️ Active Alerts ({routeAlerts.length})
+                      </h4>
+                      <div className="space-y-2">
+                        {routeAlerts.map((alert, index) => (
+                          <div key={alert.id || index} className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="text-sm font-medium text-amber-900 dark:text-amber-100 mb-1">
+                                  {alert.title}
+                                </div>
+                                <div className="text-xs text-amber-700 dark:text-amber-300 mb-2">
+                                  {alert.description}
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <span className={`text-xs px-2 py-1 rounded-full ${
+                                    alert.severity === 'high' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' :
+                                    alert.severity === 'medium' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300' :
+                                    'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                                  }`}>
+                                    {alert.severity?.toUpperCase()}
+                                  </span>
+                                  <span className="text-xs text-amber-600 dark:text-amber-400">
+                                    {alert.type?.replace('_', ' ').toUpperCase()}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
 
                 {/* Stops List */}
                 <div>

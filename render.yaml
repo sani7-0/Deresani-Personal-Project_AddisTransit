@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: addis-transit
+    runtime: docker
+    plan: free
+    autoDeploy: true
+    region: oregon
+    envVars:
+      - key: DB_HOST
+        value: YOUR_DB_HOST
+      - key: DB_NAME
+        value: YOUR_DB_NAME
+      - key: DB_USER
+        value: YOUR_DB_USER
+      - key: DB_PASS
+        value: YOUR_DB_PASSWORD
+      - key: DB_PORT
+        value: "5432"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production

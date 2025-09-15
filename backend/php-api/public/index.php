@@ -3,11 +3,17 @@ declare(strict_types=1);
 
 // Enable error reporting for debugging
 error_reporting(E_ALL);
-ini_set('display_errors', '1');
+ini_set('display_errors', '0');
 
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 header('Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS');
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('X-XSS-Protection: 0');
+header('Referrer-Policy: no-referrer');
+header('Permissions-Policy: geolocation=(), microphone=(), camera=()');
+// Strict-Transport-Security should be set by reverse proxy in production
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
     exit;
@@ -22,6 +28,57 @@ try {
     exit;
 }
 
+$jwtSecret = getenv('JWT_SECRET') ?: 'dev-secret-change-me';
+
+function getBearerToken(): ?string
+{
+    $hdr = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+    if (stripos($hdr, 'Bearer ') === 0) {
+        return substr($hdr, 7);
+    }
+    return null;
+}
+
+function verifyJwt(string $token, string $secret): ?array
+{
+    $parts = explode('.', $token);
+    if (count($parts) !== 3)
+        return null;
+    [$h, $p, $s] = $parts;
+    $sig = rtrim(strtr(base64_encode(hash_hmac('sha256', "$h.$p", $secret, true)), '+/', '-_'), '=');
+    if (!hash_equals($sig, $s))
+        return null;
+    $payload = json_decode(base64_decode(strtr($p, '-_', '+/')) ?: 'null', true);
+    if (!is_array($payload))
+        return null;
+    if (isset($payload['exp']) && time() >= (int) $payload['exp'])
+        return null;
+    return $payload;
+}
+
+function requireAuth(array $roles = []): ?array
+{
+    global $jwtSecret;
+    $t = getBearerToken();
+    if (!$t) {
+        jsonResponse(['error' => 'Unauthorized'], 401);
+        exit;
+    }
+    $payload = verifyJwt($t, $jwtSecret);
+    if (!$payload) {
+        jsonResponse(['error' => 'Unauthorized'], 401);
+        exit;
+    }
+    if (!empty($roles)) {
+        $role = $payload['role'] ?? '';
+        if (!in_array($role, $roles, true)) {
+            jsonResponse(['error' => 'Forbidden'], 403);
+            exit;
+        }
+    }
+    return $payload;
+}
+
 function jsonResponse($data, int $code = 200): void
 {
     http_response_code($code);
@@ -31,9 +88,43 @@ function jsonResponse($data, int $code = 200): void
 
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 
+// Enforce JSON content type for API responses
+header('Content-Type: application/json');
+
 if ($path === '/health') {
     jsonResponse(['ok' => true]);
     exit;
+}
+
+// Utilities for distance and ETA
+function haversine_km(float $lat1, float $lon1, float $lat2, float $lon2): float
+{
+    $R = 6371.0; // km
+    $dLat = deg2rad($lat2 - $lat1);
+    $dLon = deg2rad($lon2 - $lon1);
+    $a = sin($dLat / 2) * sin($dLat / 2) + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLon / 2) * sin($dLon / 2);
+    $c = 2 * atan2(sqrt($a), sqrt(1 - $a));
+    return $R * $c;
+}
+
+function estimate_eta_minutes(float $distanceKm, float $avgSpeedKmh = 22.0): int
+{
+    if ($avgSpeedKmh <= 0.1) {
+        $avgSpeedKmh = 22.0;
+    }
+    $minutes = ($distanceKm / $avgSpeedKmh) * 60.0;
+    return (int) max(1, round($minutes));
+}
+
+function table_exists(PDO $pdo, string $table): bool
+{
+    try {
+        $stmt = $pdo->prepare("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = :t)");
+        $stmt->execute([':t' => $table]);
+        return (bool) $stmt->fetchColumn();
+    } catch (Throwable $e) {
+        return false;
+    }
 }
 
 if ($path === '/debug/routes') {
@@ -53,7 +144,8 @@ if ($path === '/debug/routes') {
             'routes_with_stops' => $routesWithStops
         ]);
     } catch (Throwable $e) {
-        jsonResponse(['error' => 'Debug failed', 'details' => $e->getMessage()], 500);
+        error_log('Debug failed: ' . $e->getMessage());
+        jsonResponse(['error' => 'Debug failed'], 500);
     }
     exit;
 }
@@ -132,6 +224,305 @@ if ($path === '/stops/nearby' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 if ($path === '/alerts' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     $stmt = $pdo->query('select * from alerts order by updated_at desc limit 100');
     jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC));
+    exit;
+}
+
+// Fleet Management: Send reroute command to driver
+if ($path === '/fleet/reroute' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    try {
+        requireAuth(['admin']);
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!is_array($input)) {
+            $input = [];
+        }
+
+        // Accept both snake_case and camelCase
+        $busIdRaw = $input['bus_id'] ?? $input['busId'] ?? null;
+        $plateRaw = $input['plate_number'] ?? $input['plateNumber'] ?? null;
+        $destination = $input['destination'] ?? null;
+        $targetRouteIdRaw = $input['target_route_id'] ?? $input['targetRouteId'] ?? null;
+        $targetRouteShort = $input['target_route_short_name'] ?? $input['targetRouteShortName'] ?? null;
+        $targetRouteName = $input['target_route_name'] ?? $input['targetRouteName'] ?? null;
+
+        if ($busIdRaw === null && $targetRouteIdRaw === null && $destination === null) {
+            jsonResponse(['error' => 'Missing required fields: bus_id and (destination or target_route_id)'], 400);
+            exit;
+        }
+
+        $busId = (int) $busIdRaw;
+        $targetRouteId = $targetRouteIdRaw !== null ? (int) $targetRouteIdRaw : null;
+        $reason = $input['reason'] ?? 'High passenger demand detected';
+        $priority = $input['priority'] ?? 'medium';
+
+        // In a real implementation, this would:
+        // 1. Validate the bus exists and is available
+        // 2. Store the reroute command in the database
+        // 3. Send real-time notification to the driver's device
+        // 4. Update the bus's route assignment
+
+        // If target_route_id is not provided, assign by destination proximity
+        $lat = isset($destination['lat']) ? (float) $destination['lat'] : null;
+        $lng = isset($destination['lng']) ? (float) $destination['lng'] : null;
+        if ($targetRouteId === null && ($lat === null || $lng === null)) {
+            jsonResponse(['error' => 'Destination lat/lng required when target_route_id is not provided'], 400);
+            exit;
+        }
+
+        // Validate required tables exist
+        if (!table_exists($pdo, 'routes') || !table_exists($pdo, 'stops') || !table_exists($pdo, 'buses')) {
+            jsonResponse(['error' => 'Required tables not found (routes/stops/buses)'], 500);
+            exit;
+        }
+
+        // Validate/resolve bus
+        $busRow = null;
+        if ($busId) {
+            $busCheck = $pdo->prepare('SELECT id, plate_number FROM buses WHERE id = ? LIMIT 1');
+            $busCheck->execute([$busId]);
+            $busRow = $busCheck->fetch(PDO::FETCH_ASSOC) ?: null;
+        }
+        if (!$busRow && $plateRaw) {
+            $busByPlate = $pdo->prepare('SELECT id, plate_number FROM buses WHERE plate_number = ? LIMIT 1');
+            $busByPlate->execute([trim((string) $plateRaw)]);
+            $busRow = $busByPlate->fetch(PDO::FETCH_ASSOC) ?: null;
+            if ($busRow) {
+                $busId = (int) $busRow['id'];
+            }
+        }
+        if (!$busRow) {
+            jsonResponse(['error' => 'Bus not found'], 404);
+            exit;
+        }
+
+        $assignedRoute = null;
+        $best = null;
+        if ($targetRouteId !== null) {
+            $rstmt = $pdo->prepare('SELECT id, short_name, name FROM routes WHERE id = ?');
+            $rstmt->execute([$targetRouteId]);
+            $assignedRoute = $rstmt->fetch(PDO::FETCH_ASSOC);
+            if (!$assignedRoute && $targetRouteShort) {
+                $rstmt = $pdo->prepare('SELECT id, short_name, name FROM routes WHERE lower(short_name) = lower(?) LIMIT 1');
+                $rstmt->execute([trim((string) $targetRouteShort)]);
+                $assignedRoute = $rstmt->fetch(PDO::FETCH_ASSOC);
+            }
+            if (!$assignedRoute && $targetRouteName) {
+                $rstmt = $pdo->prepare('SELECT id, short_name, name FROM routes WHERE lower(name) = lower(?) LIMIT 1');
+                $rstmt->execute([trim((string) $targetRouteName)]);
+                $assignedRoute = $rstmt->fetch(PDO::FETCH_ASSOC);
+            }
+            if (!$assignedRoute) {
+                jsonResponse(['error' => 'Target route not found'], 404);
+                exit;
+            }
+            $sstmt = $pdo->prepare('SELECT id as stop_id, name, lat, lng, sequence FROM stops WHERE route_id = ? AND lat IS NOT NULL AND lng IS NOT NULL ORDER BY sequence LIMIT 1');
+            $sstmt->execute([$targetRouteId]);
+            $best = $sstmt->fetch(PDO::FETCH_ASSOC);
+            if ($best) {
+                $best['route_id'] = $assignedRoute['id'];
+                $best['short_name'] = $assignedRoute['short_name'];
+                $best['route_name'] = $assignedRoute['name'];
+            }
+        } else {
+            $rows = $pdo->query('SELECT s.id as stop_id, s.route_id, s.name, s.lat, s.lng, s.sequence, r.short_name, r.name as route_name FROM stops s JOIN routes r ON r.id = s.route_id')->fetchAll(PDO::FETCH_ASSOC);
+            $bestDist = INF;
+            foreach ($rows as $row) {
+                if ($row['lat'] === null || $row['lng'] === null) {
+                    continue;
+                }
+                $d = haversine_km($lat, $lng, (float) $row['lat'], (float) $row['lng']);
+                if ($d < $bestDist) {
+                    $bestDist = $d;
+                    $best = $row;
+                }
+            }
+        }
+
+        if ($best === null) {
+            jsonResponse(['error' => 'No routes available for reroute'], 400);
+            exit;
+        }
+
+        // Persist reassignment (avoid touching non-existent columns)
+        $upd = $pdo->prepare('UPDATE buses SET route_id = :route_id WHERE id = :bus_id');
+        $upd->execute([':route_id' => (int) $best['route_id'], ':bus_id' => (int) $busId]);
+
+        // Compute ETA from current bus position to nearest stop of assigned route
+        $busPosStmt = $pdo->prepare('SELECT last_lat, last_lng FROM buses WHERE id = ?');
+        $busPosStmt->execute([(int) $busId]);
+        $busPos = $busPosStmt->fetch(PDO::FETCH_ASSOC) ?: ['last_lat' => null, 'last_lng' => null];
+        $eta = null;
+        if (!empty($busPos['last_lat']) && !empty($busPos['last_lng']) && isset($best['lat']) && isset($best['lng'])) {
+            if ($busPos['last_lat'] !== null && $busPos['last_lng'] !== null && $best['lat'] !== null && $best['lng'] !== null) {
+                $distKm = haversine_km((float) $busPos['last_lat'], (float) $busPos['last_lng'], (float) $best['lat'], (float) $best['lng']);
+                $eta = estimate_eta_minutes($distKm);
+            }
+        }
+
+        $rerouteCommand = [
+            'id' => 'reroute-' . uniqid(),
+            'bus_id' => $busId,
+            'destination' => [
+                'name' => ($destination['name'] ?? null) ?: ($best['name'] ?? null),
+                'lat' => $lat,
+                'lng' => $lng,
+            ],
+            'assigned_route' => [
+                'id' => (int) $best['route_id'],
+                'short_name' => $best['short_name'],
+                'name' => $best['route_name'],
+                'nearest_stop' => [
+                    'id' => (int) $best['stop_id'],
+                    'name' => $best['name'],
+                    'sequence' => (int) $best['sequence'],
+                ]
+            ],
+            'reason' => $reason,
+            'priority' => $priority,
+            'status' => 'assigned',
+            'created_at' => date('Y-m-d H:i:s'),
+            'estimated_arrival_minutes' => $eta,
+        ];
+
+        jsonResponse([
+            'success' => true,
+            'message' => 'Bus reassigned to nearest existing route',
+            'command' => $rerouteCommand
+        ]);
+
+    } catch (Throwable $e) {
+        jsonResponse(['error' => 'Failed to send reroute command: ' . $e->getMessage()], 500);
+    }
+    exit;
+}
+
+// Fleet Management: Get congestion predictions (mock AI data)
+if ($path === '/fleet/congestion' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    try {
+        // Mock AI congestion predictions
+        $congestionData = [
+            [
+                'area' => 'Meskel Square',
+                'lng' => 38.7756,
+                'lat' => 9.0192,
+                'intensity' => 0.9,
+                'passengers' => 150,
+                'prediction_confidence' => 0.85,
+                'timestamp' => date('Y-m-d H:i:s')
+            ],
+            [
+                'area' => 'CMC',
+                'lng' => 38.7600,
+                'lat' => 9.0100,
+                'intensity' => 0.7,
+                'passengers' => 120,
+                'prediction_confidence' => 0.78,
+                'timestamp' => date('Y-m-d H:i:s')
+            ],
+            [
+                'area' => 'Bole',
+                'lng' => 38.7900,
+                'lat' => 9.0300,
+                'intensity' => 0.8,
+                'passengers' => 140,
+                'prediction_confidence' => 0.82,
+                'timestamp' => date('Y-m-d H:i:s')
+            ],
+            [
+                'area' => 'Piazza',
+                'lng' => 38.7500,
+                'lat' => 9.0000,
+                'intensity' => 0.6,
+                'passengers' => 100,
+                'prediction_confidence' => 0.75,
+                'timestamp' => date('Y-m-d H:i:s')
+            ],
+            [
+                'area' => 'Kazanchis',
+                'lng' => 38.7800,
+                'lat' => 9.0400,
+                'intensity' => 0.5,
+                'passengers' => 80,
+                'prediction_confidence' => 0.70,
+                'timestamp' => date('Y-m-d H:i:s')
+            ],
+            [
+                'area' => 'Merkato',
+                'lng' => 38.7400,
+                'lat' => 8.9900,
+                'intensity' => 0.4,
+                'passengers' => 60,
+                'prediction_confidence' => 0.68,
+                'timestamp' => date('Y-m-d H:i:s')
+            ],
+            [
+                'area' => 'Airport',
+                'lng' => 38.8000,
+                'lat' => 9.0500,
+                'intensity' => 0.3,
+                'passengers' => 40,
+                'prediction_confidence' => 0.65,
+                'timestamp' => date('Y-m-d H:i:s')
+            ],
+            [
+                'area' => 'Arat Kilo',
+                'lng' => 38.7200,
+                'lat' => 8.9800,
+                'intensity' => 0.2,
+                'passengers' => 30,
+                'prediction_confidence' => 0.62,
+                'timestamp' => date('Y-m-d H:i:s')
+            ]
+        ];
+
+        jsonResponse([
+            'success' => true,
+            'data' => $congestionData,
+            'generated_at' => date('Y-m-d H:i:s'),
+            'ai_model_version' => 'v1.2.3'
+        ]);
+
+    } catch (Throwable $e) {
+        jsonResponse(['error' => 'Failed to fetch congestion data: ' . $e->getMessage()], 500);
+    }
+    exit;
+}
+
+// Fleet Management: Route-level congestion from DB (based on bus fullness)
+if ($path === '/fleet/congestion/routes' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    try {
+        if (!table_exists($pdo, 'routes') || !table_exists($pdo, 'buses')) {
+            jsonResponse(['error' => 'Required tables not found (routes/buses)'], 500);
+            exit;
+        }
+
+        $sql = "
+            SELECT 
+                r.id as route_id,
+                r.short_name,
+                r.name,
+                r.color,
+                COUNT(b.id) as buses,
+                COALESCE(SUM(b.current_passenger_count), 0) as passengers,
+                COALESCE(SUM(b.max_capacity), 0) as capacity,
+                CASE WHEN COALESCE(SUM(b.max_capacity),0) > 0 
+                    THEN ROUND((COALESCE(SUM(b.current_passenger_count),0)::NUMERIC / SUM(b.max_capacity)::NUMERIC) * 100, 1)
+                    ELSE 0 END as load_percentage
+            FROM routes r
+            LEFT JOIN buses b ON b.route_id = r.id
+            GROUP BY r.id, r.short_name, r.name, r.color
+            ORDER BY load_percentage DESC, buses DESC
+            LIMIT 5
+        ";
+
+        $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+
+        jsonResponse([
+            'success' => true,
+            'routes' => $rows
+        ]);
+    } catch (Throwable $e) {
+        jsonResponse(['error' => 'Failed to compute route congestion', 'details' => $e->getMessage()], 500);
+    }
     exit;
 }
 
@@ -227,7 +618,11 @@ if ($path === '/admin/login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $upd->execute([':h' => $newHash, ':id' => $user['id']]);
         }
 
-        $token = base64_encode(random_bytes(24));
+        $header = rtrim(strtr(base64_encode(json_encode(['alg' => 'HS256', 'typ' => 'JWT'])), '+/', '-_'), '=');
+        $exp = time() + 60 * 60 * 8; // 8 hours
+        $payload = rtrim(strtr(base64_encode(json_encode(['sub' => (int) $user['id'], 'email' => $user['email'], 'role' => $user['role'], 'exp' => $exp])), '+/', '-_'), '=');
+        $sig = rtrim(strtr(base64_encode(hash_hmac('sha256', "$header.$payload", $jwtSecret, true)), '+/', '-_'), '=');
+        $token = "$header.$payload.$sig";
         jsonResponse([
             'token' => $token,
             'user' => [
@@ -313,7 +708,49 @@ if ($path === '/buses/status' && $_SERVER['REQUEST_METHOD'] === 'GET') {
 
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
-        jsonResponse($stmt->fetchAll(PDO::FETCH_ASSOC));
+        $buses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Compute next stop and ETA per-bus (nearest stop on the current route)
+        foreach ($buses as &$bus) {
+            $busLat = isset($bus['last_lat']) ? (float) $bus['last_lat'] : 0.0;
+            $busLng = isset($bus['last_lng']) ? (float) $bus['last_lng'] : 0.0;
+            $routeIdForBus = isset($bus['route_id']) ? (int) $bus['route_id'] : null;
+
+            $nextStopName = null;
+            $nextStopSeq = null;
+            $etaMinutes = null;
+
+            if ($routeIdForBus && $busLat !== 0.0 && $busLng !== 0.0) {
+                $stopStmt = $pdo->prepare('SELECT id, name, lat, lng, sequence FROM stops WHERE route_id = ? ORDER BY sequence ASC');
+                $stopStmt->execute([$routeIdForBus]);
+                $stops = $stopStmt->fetchAll(PDO::FETCH_ASSOC);
+
+                $minDist = INF;
+                $closest = null;
+                foreach ($stops as $s) {
+                    if ($s['lat'] === null || $s['lng'] === null) {
+                        continue;
+                    }
+                    $d = haversine_km($busLat, $busLng, (float) $s['lat'], (float) $s['lng']);
+                    if ($d < $minDist) {
+                        $minDist = $d;
+                        $closest = $s;
+                    }
+                }
+
+                if ($closest !== null) {
+                    $nextStopName = $closest['name'];
+                    $nextStopSeq = (int) $closest['sequence'];
+                    $etaMinutes = estimate_eta_minutes($minDist);
+                }
+            }
+
+            $bus['next_stop'] = $nextStopName;
+            $bus['next_stop_sequence'] = $nextStopSeq;
+            $bus['eta_minutes'] = $etaMinutes;
+        }
+
+        jsonResponse($buses);
     } catch (Throwable $e) {
         error_log('Bus status error: ' . $e->getMessage());
         jsonResponse(['error' => 'Failed to fetch bus status', 'details' => $e->getMessage()], 500);
