@@ -24,11 +24,11 @@ const TopBar = ({ offsetLeft = 0, leftAddon = null, containerStyle, containerCla
 
   return (
     <div
-      className={`sticky top-0 z-30 border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 supports-[backdrop-filter]:dark:bg-gray-900/60 ${containerClassName}`}
+      className={`sticky top-0 z-30 border-b border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-900/90 backdrop-blur supports-[backdrop-filter]:bg-white/70 supports-[backdrop-filter]:dark:bg-gray-900/70 ${containerClassName}`}
       style={{ paddingLeft: offsetLeft, ...(containerStyle || {}) }}
     >
-      <div className="p-4">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="px-3 py-2 sm:p-4">
+        <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar max-w-full">
           {leftAddon}
           {navItems.map((item) => (
             <NavLink
@@ -42,7 +42,7 @@ const TopBar = ({ offsetLeft = 0, leftAddon = null, containerStyle, containerCla
                 }
               }}
               className={({ isActive }) =>
-                `inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors border shadow-sm ${
+                `inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors border shadow-sm whitespace-nowrap ${
                   isActive
                     ? "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white border-gray-200 dark:border-gray-700"
                     : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50 border-transparent"
@@ -55,7 +55,7 @@ const TopBar = ({ offsetLeft = 0, leftAddon = null, containerStyle, containerCla
           <div className="ml-auto" />
           <button
             onClick={() => navigate(isAuthed ? "/admin/dashboard" : "/admin/login")}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors border shadow-sm bg-emerald-600 text-white hover:bg-emerald-700"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors border shadow-sm bg-emerald-600 text-white hover:bg-emerald-700 whitespace-nowrap"
           >
             {isAuthed ? "Dashboard" : "Admin Login"}
           </button>

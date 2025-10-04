@@ -2,6 +2,7 @@ import React from "react"
 import ReactDOM from "react-dom/client"
 import App from "./App.jsx"
 import "./index.css"
+import { App as CapacitorApp } from '@capacitor/app'
 
 // Register Service Worker for PWA
 if ('serviceWorker' in navigator) {
@@ -15,6 +16,15 @@ if ('serviceWorker' in navigator) {
       });
   });
 }
+
+// Android Back Button handling
+CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+  if (canGoBack) {
+    window.history.back()
+  } else {
+    CapacitorApp.exitApp()
+  }
+})
 
 try {
   ReactDOM.createRoot(document.getElementById("root")).render(

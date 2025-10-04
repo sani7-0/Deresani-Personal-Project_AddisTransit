@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom"
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from "react-router-dom"
 import ErrorBoundary from "./components/ErrorBoundary"
 
 import MapPage from "./pages/MapPage"
@@ -17,8 +17,19 @@ import SettingsPage from "./pages/SettingsPage"
 import AboutPage from "./pages/AboutPage"
 import CoordinatorInterface from "./components/CoordinatorInterface"
 import DriverDashboard from "./components/DriverDashboard"
+import MobileApp from "./pages/MobileApp"
 
 function App() {
+  // Force mobile shell: always route mobile UA to /m
+  useEffect(() => {
+    try {
+      const ua = navigator.userAgent.toLowerCase()
+      const isMobile = /android|iphone|ipad|ipod/.test(ua)
+      if (isMobile && !window.location.pathname.startsWith('/m')) {
+        window.location.replace('/m')
+      }
+    } catch (_) {}
+  }, [])
   const [darkMode, setDarkMode] = useState(() => {
     const saved = localStorage.getItem("transit-dark-mode")
     if (saved !== null) {
@@ -56,6 +67,7 @@ function App() {
           <div className="flex-1 flex flex-col">
             <Routes>
               <Route path="/" element={<LandingPage />} />
+              <Route path="/m" element={<MobileApp />} />
               <Route path="/map" element={<MapPage darkMode={darkMode} setDarkMode={setDarkMode} />} />
               <Route path="/feedback" element={<FeedbackPage />} />
               <Route path="/admin/login" element={<AdminLoginPage />} />

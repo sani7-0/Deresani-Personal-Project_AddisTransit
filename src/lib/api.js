@@ -1,9 +1,16 @@
-const API = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const API = 'https://calculator-php-transition-paint.trycloudflare.com';
 console.log('API URL:', API);
 
 const safeFetch = async (path, options = {}, retries = 5) => {
   const baseUrl = API;
-  console.log(`API call: ${baseUrl}${path}`);
+  let origin;
+  try {
+    const u = new URL(baseUrl);
+    origin = u.origin;
+  } catch {
+    origin = String(baseUrl || '').replace(/\/$/, '');
+  }
+  console.log(`API call: ${origin}${path}`);
   
   for (let i = 0; i < retries; i++) {
     try {
@@ -12,9 +19,10 @@ const safeFetch = async (path, options = {}, retries = 5) => {
         const token = localStorage.getItem('admin_token');
         if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
       } catch {}
-      const res = await fetch(`${baseUrl}${path}`, { ...options, headers });
+      if (!headers.has('Accept')) headers.set('Accept', 'application/json');
+      let url = new URL(path, origin.endsWith('/') ? origin : origin + '/').toString();
+      const res = await fetch(url, { ...options, headers });
       if (!res.ok) {
-        // Try to extract server error details
         let serverError = `HTTP ${res.status}`;
         try {
           const errBody = await res.json();
@@ -24,16 +32,20 @@ const safeFetch = async (path, options = {}, retries = 5) => {
         } catch {}
         const err = new Error(serverError);
         if (res.status >= 400 && res.status < 500) {
-          throw err; // immediate fail for 4xx
+          throw err;
         }
-        throw err; // will be caught and potentially retried
+        throw err;
+      }
+      const ct = res.headers.get('content-type') || '';
+      if (!ct.includes('application/json')) {
+        const text = await res.text();
+        throw new Error(`Invalid content-type: ${ct} body: ${text.slice(0,120)}`);
       }
       const data = await res.json();
       console.log(`API response for ${path}:`, data);
       return data;
     } catch (error) {
       console.log(`API call failed (attempt ${i + 1}/${retries}):`, error.message);
-      // If it's a 4xx client error, don't retry
       const m = /^HTTP\s+(\d{3})$/.exec(String(error.message || ''));
       if (m) {
         const code = Number(m[1]);
@@ -45,7 +57,6 @@ const safeFetch = async (path, options = {}, retries = 5) => {
         console.error(`All ${retries} attempts failed for ${path}`);
         throw error;
       }
-      // Exponential backoff with jitter
       const delay = Math.min(1000 * Math.pow(2, i) + Math.random() * 1000, 10000);
       console.log(`Retrying in ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
@@ -77,18 +88,14 @@ export const fetchBuses = (routeId) => {
 
 import busSimulation from './busSimulation.js';
 
-// Ethiopian transit data - realistic simulation following routes
 export const fetchEthiopianBuses = async () => {
-  // Initialize simulation if not already running
   if (!busSimulation.isRunning) {
     await busSimulation.initialize();
   }
   
-  // Return current bus positions
   return busSimulation.getBuses();
 };
 
-// Get buses for a specific route
 export const fetchBusesForRoute = async (routeId) => {
   if (!busSimulation.isRunning) {
     await busSimulation.initialize();
@@ -97,12 +104,10 @@ export const fetchBusesForRoute = async (routeId) => {
   return busSimulation.getBusesForRoute(routeId);
 };
 
-// Get simulation status
 export const getSimulationStatus = () => {
   return busSimulation.getStatus();
 };
 
-// Add a new bus to a route
 export const addBusToRoute = async (routeId) => {
   if (!busSimulation.isRunning) {
     await busSimulation.initialize();
@@ -111,7 +116,6 @@ export const addBusToRoute = async (routeId) => {
   return busSimulation.addBus(routeId);
 };
 
-// Remove a bus
 export const removeBus = (busId) => {
   return busSimulation.removeBus(busId);
 };
@@ -121,16 +125,13 @@ export const fetchRoutesWithStops = async () => {
   const results = [];
   for (const r of routes) {
     try {
-      // Backend /routes/{id} already includes stops
       const routeWithStops = await fetchRoute(r.id);
-      // Map backend field names to frontend expected names
       results.push({
         ...routeWithStops,
         shortName: routeWithStops.short_name || routeWithStops.shortName,
         routeNumber: routeWithStops.route_number || routeWithStops.routeNumber
       });
     } catch {
-      // Fallback to basic route info if detailed fetch fails
       results.push({
         ...r,
         shortName: r.short_name || r.shortName,
@@ -147,7 +148,27 @@ export const fetchRouteGeometry = async (routeId = null) => {
   return safeFetch(`/routes/geometry${q}`);
 };
 
-// Admin login
+export const sendOtp = (phoneNumber) =>
+  safeFetch('/auth/send-otp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone_number: phoneNumber })
+  });
+
+export const verifyOtp = (phoneNumber, otpCode) =>
+  safeFetch('/auth/verify-otp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone_number: phoneNumber, otp_code: otpCode })
+  });
+
+export const resendOtp = (phoneNumber) =>
+  safeFetch('/auth/resend-otp', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone_number: phoneNumber })
+  });
+
 export const adminLogin = async (email, password) => {
   return safeFetch('/admin/login', {
     method: 'POST',
@@ -158,7 +179,6 @@ export const adminLogin = async (email, password) => {
 
 export const fetchFeedbacks = (limit = 200) => safeFetch(`/feedbacks?limit=${limit}`);
 
-// Road snapping using Mapbox Directions API
 export const getSnappedRoute = async (coordinates, profile = 'driving') => {
   const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
   
@@ -174,7 +194,6 @@ export const getSnappedRoute = async (coordinates, profile = 'driving') => {
   }
 
   try {
-    // Convert coordinates to the format expected by Mapbox Directions API
     const coordinatesString = coordinates.map(coord => `${coord[0]},${coord[1]}`).join(';');
     const url = `https://api.mapbox.com/directions/v5/mapbox/${profile}/${coordinatesString}?geometries=geojson&access_token=${MAPBOX_TOKEN}`;
     
@@ -201,7 +220,6 @@ export const getSnappedRoute = async (coordinates, profile = 'driving') => {
     }
   } catch (error) {
     console.error('Error fetching snapped route:', error);
-    // Fallback to straight line
     return {
       type: "Feature",
       geometry: {
@@ -212,7 +230,6 @@ export const getSnappedRoute = async (coordinates, profile = 'driving') => {
   }
 };
 
-// Alternative: Use OSRM (free, no API key required)
 export const getSnappedRouteOSRM = async (coordinates, profile = 'driving') => {
   try {
     const coordinatesString = coordinates.map(coord => `${coord[0]},${coord[1]}`).join(';');
@@ -241,7 +258,6 @@ export const getSnappedRouteOSRM = async (coordinates, profile = 'driving') => {
     }
   } catch (error) {
     console.error('Error fetching snapped route from OSRM:', error);
-    // Fallback to straight line
     return {
       type: "Feature",
       geometry: {
@@ -278,7 +294,6 @@ export const openBusesSSE = (routeId = null, onMessage, onError) => {
   return eventSource;
 };
 
-// Get bus status with passenger load data
 export const fetchBusStatus = (routeId = null, plateNumber = null) => {
   const params = new URLSearchParams();
   if (routeId) params.append('routeId', routeId);
@@ -288,7 +303,6 @@ export const fetchBusStatus = (routeId = null, plateNumber = null) => {
   return safeFetch(`/buses/status${query ? '?' + query : ''}`);
 };
 
-// Add ticket (when ticket machine prints ticket)
 export const addTicket = (plateNumber) => {
   return safeFetch('/buses/add-ticket', {
     method: 'POST',
@@ -297,7 +311,6 @@ export const addTicket = (plateNumber) => {
   });
 };
 
-// Reset bus passenger count (end of route)
 export const resetBusCount = (plateNumber) => {
   return safeFetch('/buses/reset', {
     method: 'POST',
@@ -306,7 +319,6 @@ export const resetBusCount = (plateNumber) => {
   });
 };
 
-// Fleet Management: Send reroute command to driver
 export const sendRerouteCommand = (busId, destination, reason = 'High passenger demand detected', priority = 'medium') => {
   return safeFetch('/fleet/reroute', {
     method: 'POST',
@@ -315,7 +327,6 @@ export const sendRerouteCommand = (busId, destination, reason = 'High passenger 
   });
 };
 
-// Fleet Management: Reroute by target route id
 export const sendRerouteToRoute = (busId, targetRouteId, reason = 'Move bus to congested route', priority = 'medium', plateNumber = null, targetRouteShortName = null, targetRouteName = null) => {
   return safeFetch('/fleet/reroute', {
     method: 'POST',
@@ -332,12 +343,10 @@ export const sendRerouteToRoute = (busId, targetRouteId, reason = 'Move bus to c
   });
 };
 
-// Fleet Management: Get AI congestion predictions
 export const fetchCongestionData = () => {
   return safeFetch('/fleet/congestion');
 };
 
-// Route-level congestion (DB)
 export const fetchRouteCongestion = () => {
   return safeFetch('/fleet/congestion/routes');
 };

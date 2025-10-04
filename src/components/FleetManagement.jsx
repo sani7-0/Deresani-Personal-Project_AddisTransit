@@ -60,7 +60,7 @@ const FleetManagement = () => {
   }
 
   const generateMockCongestionData = () => {
-    // Fallback mock AI congestion predictions
+    // Fallback mock congestion predictions
     const areas = [
       { area: 'Meskel Square', lng: 38.7756, lat: 9.0192, intensity: 0.9, passengers: 150 },
       { area: 'CMC', lng: 38.7600, lat: 9.0100, intensity: 0.7, passengers: 120 },
@@ -148,9 +148,9 @@ const FleetManagement = () => {
       <div className="rounded-3xl border border-green-200 dark:border-green-900/40 bg-white/90 dark:bg-gray-900/70 shadow-xl p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">AI Fleet Management</h2>
+            <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">Fleet Management</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              AI-powered congestion prediction and bus rerouting system
+              Congestion overview and bus rerouting tools
             </p>
           </div>
           <button
@@ -161,11 +161,11 @@ const FleetManagement = () => {
           </button>
         </div>
 
-        {/* AI Congestion Heatmap */}
+        {/* Congestion Heatmap */}
         <div className="mb-6 rounded-2xl overflow-hidden border border-green-100 dark:border-green-900/40">
           <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-orange-500" />
-            AI Congestion Predictions
+            Congestion Predictions
           </h3>
           <CongestionHeatmap 
             congestionData={congestionData}

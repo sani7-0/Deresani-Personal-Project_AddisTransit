@@ -86,7 +86,7 @@ const CongestionHeatmap = ({ congestionData, onLocationClick, selectedLocation }
         onClick={handleMapClick}
         onLoad={() => setMapLoaded(true)}
       >
-        {/* Heatmap layer */}
+        {/* Congestion Heatmap */}
         <Source
           id="congestion-heatmap"
           type="geojson"

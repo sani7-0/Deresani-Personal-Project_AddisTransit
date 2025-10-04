@@ -34,11 +34,22 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
   const [nearbyStops, setNearbyStops] = useState([])
   const [circleRadius, setCircleRadius] = useState(10000) // 10km radius in meters
   const [alerts, setAlerts] = useState([])
+  const [isMobile, setIsMobile] = useState(false)
+  const [mobileSelectedBus, setMobileSelectedBus] = useState(null)
 
   // Update map style based on dark mode
   useEffect(() => {
     const isDark = document.documentElement.classList.contains("dark")
     setMapStyle(isDark ? "mapbox://styles/mapbox/dark-v10" : "mapbox://styles/mapbox/light-v10")
+  }, [])
+
+  // Detect mobile device
+  useEffect(() => {
+    try {
+      const ua = navigator.userAgent.toLowerCase()
+      const mobile = /android|iphone|ipad|ipod/.test(ua)
+      setIsMobile(mobile)
+    } catch {}
   }, [])
 
   // Listen for dark mode changes
@@ -460,6 +471,9 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
       if (onBusSelect) {
         onBusSelect(bus)
       }
+      if (isMobile) {
+        setMobileSelectedBus(bus)
+      }
       
       const route = routes.find((r) => r.id === bus.route_id)
       if (route && onRouteSelect) {
@@ -475,7 +489,7 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
         })
       }
     },
-    [onBusSelect, onRouteSelect, viewState.zoom, routes]
+    [onBusSelect, onRouteSelect, viewState.zoom, routes, isMobile]
   )
 
   const filteredBuses = selectedRoute ? buses.filter((bus) => String(bus.route_id) === String(selectedRoute.id)) : buses
@@ -574,6 +588,7 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
                 max_capacity: bus.max_capacity
               })}
               isSelected={selectedBus?.id === bus.bus_id}
+              isMobile={isMobile}
             />
           ))}
         </AnimatePresence>
@@ -702,11 +717,105 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
         )}
       </MapGL>
 
+      {/* Mobile bus info panel */}
+      <AnimatePresence>
+        {isMobile && mobileSelectedBus && (
+          <motion.div
+            className="absolute left-0 right-0 bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 rounded-t-2xl shadow-2xl p-4 z-20"
+            initial={{ y: 200, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 200, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 260, damping: 25 }}
+          >
+            {(() => {
+              const passengers = Number(mobileSelectedBus.passengers || 0)
+              const capacity = Number(mobileSelectedBus.max_capacity || 50)
+              const fullness = Math.min(Math.round((passengers / capacity) * 100), 100)
+              const statusColor = fullness < 50 ? 'green' : fullness < 80 ? 'yellow' : 'red'
+              const badgeClasses = statusColor === 'green'
+                ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
+                : statusColor === 'yellow'
+                ? 'bg-yellow-100 dark:bg-yellow-900 text-yellow-700 dark:text-yellow-300'
+                : 'bg-red-100 dark:bg-red-900 text-red-700 dark:text-red-300'
+
+              return (
+                <>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        {routes.find(r => String(r.id) === String(mobileSelectedBus.route_id))?.short_name || 'Route'} • {mobileSelectedBus.plate_number || mobileSelectedBus.vehicle_number || mobileSelectedBus.id}
+                      </div>
+                      <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Passengers: {passengers} / {capacity}
+                      </div>
+                    </div>
+                    <div className={`px-2 py-1 rounded-full text-[11px] font-medium ${badgeClasses}`}>
+                      {fullness}% full
+                    </div>
+                    <button
+                      onClick={() => setMobileSelectedBus(null)}
+                      className="ml-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                      aria-label="Close bus details"
+                    >
+                      ×
+                    </button>
+                  </div>
+
+                  <div className="mt-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        statusColor === 'green' ? 'bg-green-500' : statusColor === 'yellow' ? 'bg-yellow-500' : 'bg-red-500'
+                      }`}
+                      style={{ width: `${fullness}%` }}
+                    />
+                  </div>
+                </>
+              )
+            })()}
+
+            {/* Key rider info: ETA, Next Stop, Active Buses */}
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <div className="px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                <div className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">ETA</div>
+                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{typeof mobileSelectedBus.eta_minutes === 'number' ? `${mobileSelectedBus.eta_minutes} min` : '—'}</div>
+              </div>
+              <div className="px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 col-span-1">
+                <div className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Next Stop</div>
+                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate" title={mobileSelectedBus.next_stop || ''}>{mobileSelectedBus.next_stop || '—'}</div>
+              </div>
+              <div className="px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+                <div className="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Buses</div>
+                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">{buses.filter(b => String(b.route_id) === String(mobileSelectedBus.route_id)).length}</div>
+              </div>
+            </div>
+
+            {/* Optional: show alerts for this bus/route */}
+            {(() => {
+              const alertsForBus = getAlertsForBus({ route_id: mobileSelectedBus.route_id })
+              if (!alertsForBus.length) return null
+              return (
+                <div className="mt-3 space-y-1">
+                  {alertsForBus.map(alert => (
+                    <div key={alert.id} className="text-xs px-2 py-1 rounded border border-yellow-300 bg-yellow-50 text-yellow-800 dark:border-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300">
+                      {alert.title || 'Service alert'}
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
+
+            <div className="mt-3 text-[11px] text-gray-500 dark:text-gray-400">
+              Updated {new Date(lastUpdate).toLocaleTimeString()}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Refresh user location button */}
       <motion.button
         onClick={centerOnUserLocation}
         disabled={isLocating}
-        className="absolute bottom-6 right-6 w-12 h-12 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 rounded-full shadow-lg border border-blue-600 flex items-center justify-center transition-colors z-10 disabled:opacity-50"
+        className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 w-12 h-12 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 rounded-full shadow-lg border border-blue-600 flex items-center justify-center transition-colors z-10 disabled:opacity-50"
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         animate={isLocating ? { rotate: 360 } : { rotate: 0 }}
@@ -728,7 +837,7 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
       <motion.button
         onClick={handleRecenter}
         disabled={isRecentering}
-        className="absolute bottom-6 right-20 w-12 h-12 bg-white dark:bg-gray-800 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors z-10 disabled:opacity-50"
+        className="absolute bottom-4 right-20 sm:bottom-6 sm:right-20 w-12 h-12 bg-white dark:bg-gray-800 rounded-full shadow-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors z-10 disabled:opacity-50"
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         animate={isRecentering ? { rotate: 360 } : { rotate: 0 }}
@@ -746,7 +855,7 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
       {/* Road snapping toggle */}
       <motion.button
         onClick={() => setUseRoadSnapping(!useRoadSnapping)}
-        className={`absolute bottom-6 right-32 w-12 h-12 rounded-full shadow-lg border flex items-center justify-center transition-colors z-10 ${
+        className={`absolute bottom-4 right-32 sm:bottom-6 sm:right-32 w-12 h-12 rounded-full shadow-lg border flex items-center justify-center transition-colors z-10 ${
           useRoadSnapping 
             ? 'bg-green-500 hover:bg-green-600 border-green-600 text-white' 
             : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400'
@@ -767,7 +876,7 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
       <motion.button
         onClick={handleRefreshBuses}
         disabled={isLoadingBuses}
-        className="absolute bottom-6 right-44 w-12 h-12 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 rounded-full shadow-lg border border-blue-600 flex items-center justify-center transition-colors z-10 disabled:opacity-50"
+        className="absolute bottom-4 right-44 sm:bottom-6 sm:right-44 w-12 h-12 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 rounded-full shadow-lg border border-blue-600 flex items-center justify-center transition-colors z-10 disabled:opacity-50"
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         animate={isLoadingBuses ? { rotate: 360 } : { rotate: 0 }}
@@ -781,7 +890,7 @@ const MapView = ({ selectedRoute, onRouteSelect, plannerFrom, plannerTo, onMapCl
       {/* Simulation controls toggle */}
       <motion.button
         onClick={() => setShowSimulationControls(!showSimulationControls)}
-        className="absolute bottom-6 right-56 w-12 h-12 bg-gray-600 hover:bg-gray-700 rounded-full shadow-lg border border-gray-500 flex items-center justify-center transition-colors z-10"
+        className="absolute bottom-4 right-56 sm:bottom-6 sm:right-56 w-12 h-12 bg-gray-600 hover:bg-gray-700 rounded-full shadow-lg border border-gray-500 flex items-center justify-center transition-colors z-10"
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
         aria-label="Simulation controls"

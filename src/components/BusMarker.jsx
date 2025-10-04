@@ -2,7 +2,7 @@
 import { Marker } from "@urbica/react-map-gl"
 import { motion, AnimatePresence } from "framer-motion"
 
-const BusMarker = ({ bus, route, onClick, isSelected }) => {
+const BusMarker = ({ bus, route, onClick, isSelected, isMobile = false }) => {
   return (
     <Marker longitude={bus.lng} latitude={bus.lat}>
       <motion.div
@@ -26,7 +26,7 @@ const BusMarker = ({ bus, route, onClick, isSelected }) => {
       >
         {/* Bus icon container */}
         <motion.div
-          className={`w-12 h-12 rounded-xl shadow-xl border-2 border-white flex items-center justify-center relative transition-all duration-200 ${
+          className={`${isMobile ? 'w-9 h-9' : 'w-12 h-12'} rounded-xl shadow-xl border-2 border-white flex items-center justify-center relative transition-all duration-200 ${
             isSelected ? "ring-2 ring-white ring-opacity-50" : ""
           } group-hover:shadow-2xl group-hover:scale-105`}
           style={{ backgroundColor: route?.color || "#0ea5e9" }}
@@ -38,8 +38,8 @@ const BusMarker = ({ bus, route, onClick, isSelected }) => {
         >
           {/* Bus icon */}
           <motion.svg
-            width="20"
-            height="20"
+            width={isMobile ? "16" : "20"}
+            height={isMobile ? "16" : "20"}
             viewBox="0 0 24 24"
             fill="none"
             className="text-white"
@@ -94,7 +94,7 @@ const BusMarker = ({ bus, route, onClick, isSelected }) => {
         {/* Route label */}
         <AnimatePresence>
           <motion.div
-            className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 px-2 py-1 rounded text-xs font-medium shadow-md border border-gray-200 dark:border-gray-700 whitespace-nowrap"
+            className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 bg-white dark:bg-gray-800 px-2 py-1 rounded text-[10px] md:text-xs font-medium shadow-md border border-gray-200 dark:border-gray-700 whitespace-nowrap"
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}

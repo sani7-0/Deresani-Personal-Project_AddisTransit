@@ -30,23 +30,32 @@ RUN chown -R www-data:www-data /var/www/html
 # Enable mod_rewrite
 RUN a2enmod rewrite
 
-# Add Apache config: serve React at /, PHP API routes
-RUN echo '<VirtualHost *:80>\n\
+RUN echo '<IfModule mime_module>\n\
+    AddType application/javascript .js\n\
+    AddType text/css .css\n\
+    AddType application/json .json\n\
+    AddType image/svg+xml .svg\n\
+    AddType image/png .png\n\
+    AddType image/jpeg .jpg .jpeg\n\
+    </IfModule>\n\
+    <VirtualHost *:80>\n\
     DocumentRoot /var/www/html\n\
     \n\
-    # Frontend (React)\n\
     <Directory /var/www/html>\n\
     Options FollowSymLinks\n\
     AllowOverride All\n\
     Require all granted\n\
     </Directory>\n\
     \n\
-    # API routes\n\
     RewriteEngine On\n\
-    RewriteCond %{REQUEST_URI} ^/(routes|stops|buses|alerts|feedback|admin|trip|health|debug)\n\
+    # Never rewrite static asset extensions\n\
+    RewriteCond %{REQUEST_URI} \.(css|js|map|png|jpg|jpeg|svg|webp|ico|json|txt|csv)$ [NC]\n\
+    RewriteRule - [L]\n\
+    # API routes to PHP\n\
+    RewriteCond %{REQUEST_URI} ^/(routes|stops|buses|alerts|feedback|admin|trip|health|debug) [NC]\n\
     RewriteRule ^(.*)$ /public/index.php [QSA,L]\n\
     \n\
-    # React routing for all other routes\n\
+    # SPA fallback for everything else\n\
     RewriteCond %{REQUEST_FILENAME} !-f\n\
     RewriteCond %{REQUEST_FILENAME} !-d\n\
     RewriteRule . /index.html [L]\n\

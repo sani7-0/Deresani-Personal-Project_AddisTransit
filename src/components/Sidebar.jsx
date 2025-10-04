@@ -145,14 +145,14 @@ const Sidebar = ({ isOpen, onToggle, selectedRoute, onRouteSelect, selectedBus, 
     <>
       {/* Sidebar */}
       <motion.div
-        className="fixed left-0 top-0 h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 z-40 flex flex-col"
+        className="fixed left-0 top-0 h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 z-40 flex flex-col w-full max-w-full lg:max-w-[400px]"
         initial={false}
         animate={{
-          width: isOpen ? 400 : 0,
+          width: isOpen ? (typeof window !== 'undefined' && window.innerWidth < 640 ? '100%' : 400) : 0,
           opacity: isOpen ? 1 : 0,
         }}
         transition={{
-          duration: 0.3,
+          duration: 0.25,
           ease: "easeInOut",
           opacity: { duration: isOpen ? 0.3 : 0.1 },
         }}
@@ -160,7 +160,7 @@ const Sidebar = ({ isOpen, onToggle, selectedRoute, onRouteSelect, selectedBus, 
       >
         <div className="w-full h-full flex flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between px-4 py-4 sm:py-6 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center space-x-4">
               <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
                 <Navigation className="w-7 h-7 text-white" />
@@ -178,7 +178,7 @@ const Sidebar = ({ isOpen, onToggle, selectedRoute, onRouteSelect, selectedBus, 
             </button>
           </div>
 
-          <div className="px-4 py-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="px-4 py-4 sm:py-6 border-b border-gray-200 dark:border-gray-700">
             <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4">Plan Your Trip</h2>
 
             <div className="space-y-4">

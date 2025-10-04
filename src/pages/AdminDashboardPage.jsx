@@ -1,19 +1,16 @@
 import { useEffect, useMemo, useState } from "react"
 import { fetchFeedbacks } from "../lib/api"
-import forecastsUrl from "../../addis_bus_forecast_sep2025_timeslot_holidays.csv?url"
 import { useNavigate } from "react-router-dom"
 import TopBar from "../components/TopBar"
 import FleetManagement from "../components/FleetManagement"
-import { BarChart2, Users, Map, AlertTriangle, LogOut, Bus } from "lucide-react"
+import { LogOut, Bus } from "lucide-react"
 
 export default function AdminDashboardPage() {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState('ai') // 'ai' | 'feedbacks' | 'fleet'
+  const [activeTab, setActiveTab] = useState('feedbacks') // 'feedbacks' | 'fleet'
   const [feedbacks, setFeedbacks] = useState([])
   const [loadingFeedbacks, setLoadingFeedbacks] = useState(false)
-  const [forecasts, setForecasts] = useState([])
-  const [loadingForecasts, setLoadingForecasts] = useState(false)
-  const [filter, setFilter] = useState({ from: '', to: '', slot: '', start: '', end: '' })
+  // removed AI forecasts state
 
   useEffect(() => {
     try {
@@ -38,70 +35,9 @@ export default function AdminDashboardPage() {
     load()
   }, [activeTab])
 
-  useEffect(() => {
-    const load = async () => {
-      if (activeTab !== 'ai' || forecasts.length > 0) return
-      setLoadingForecasts(true)
-      try {
-        const res = await fetch(forecastsUrl)
-        const text = await res.text()
-        const rows = text.trim().split(/\r?\n/)
-        const header = rows.shift().split(',')
-        const idx = (name) => header.indexOf(name)
-        const out = []
-        for (const line of rows) {
-          const cols = line.split(',')
-          out.push({
-            date: cols[idx('date')],
-            predicted_passengers: Number(cols[idx('predicted_passengers')]),
-            lower_bound: Number(cols[idx('lower_bound')]),
-            upper_bound: Number(cols[idx('upper_bound')]),
-            origin: cols[idx('origin')],
-            destination: cols[idx('destination')],
-            time_slot: cols[idx('time_slot')],
-          })
-        }
-        setForecasts(out)
-      } finally {
-        setLoadingForecasts(false)
-      }
-    }
-    load()
-  }, [activeTab, forecasts.length])
+  // Removed AI forecasts tab and data load per request
 
-  const uniqueOrigins = useMemo(() => Array.from(new Set(forecasts.map(f => f.origin))).sort(), [forecasts])
-  const uniqueDestinations = useMemo(() => Array.from(new Set(forecasts.map(f => f.destination))).sort(), [forecasts])
-  const uniqueSlots = useMemo(() => Array.from(new Set(forecasts.map(f => f.time_slot))).sort(), [forecasts])
-
-  const filteredForecasts = useMemo(() => {
-    return forecasts.filter(f => {
-      if (filter.from && f.origin !== filter.from) return false
-      if (filter.to && f.destination !== filter.to) return false
-      if (filter.slot && f.time_slot !== filter.slot) return false
-      if (filter.start && f.date < filter.start) return false
-      if (filter.end && f.date > filter.end) return false
-      return true
-    })
-  }, [forecasts, filter])
-
-  const kpiData = useMemo(() => {
-    const rows = filteredForecasts.length ? filteredForecasts : forecasts
-    if (!rows.length) return { total: 0, pairs: 0, avg: 0, peak: 0, today: 0 }
-    let total = 0
-    let peak = 0
-    const pairsSet = new Set()
-    const todayStr = new Date().toISOString().split('T')[0]
-    let today = 0
-    for (const r of rows) {
-      const p = Number(r.predicted_passengers) || 0
-      total += p
-      if (p > peak) peak = p
-      pairsSet.add(`${r.origin}→${r.destination}`)
-      if (r.date === todayStr) today += p
-    }
-    const avg = Math.round(total / rows.length)
-    return { total: Math.round(total), pairs: pairsSet.size, avg, peak: Math.round(peak), today: Math.round(today) }
-  }, [filteredForecasts, forecasts])
+  // removed AI KPI calculations
 
   const logout = () => {
     localStorage.removeItem("admin_token")
@@ -136,12 +72,6 @@ export default function AdminDashboardPage() {
             <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400 px-2 mb-2">Menu</div>
             <nav className="space-y-1">
               <button
-                onClick={() => setActiveTab('ai')}
-                className={`w-full text-left px-3 py-2 rounded-xl transition-colors ${activeTab === 'ai' ? 'bg-emerald-600 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200'}`}
-              >
-                AI Statistics
-              </button>
-              <button
                 onClick={() => setActiveTab('feedbacks')}
                 className={`w-full text-left px-3 py-2 rounded-xl transition-colors ${activeTab === 'feedbacks' ? 'bg-emerald-600 text-white' : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200'}`}
               >
@@ -158,96 +88,7 @@ export default function AdminDashboardPage() {
 
           {/* Main content */}
           <main className="flex-1">
-            {activeTab === 'ai' && (
-              <>
-                {/* Section Title */}
-                <div className="rounded-3xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/60 shadow-xl p-5 mb-6">
-                  <div className="mb-0">
-                    <h2 className="text-2xl md:text-3xl font-extrabold tracking-tight">AI -Driven Passenger Demand Prediction</h2>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Forecasts and confidence intervals with flexible filters</p>
-                  </div>
-                </div>
-
-                {/* Widgets from forecast data */}
-                <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                  <StatCard icon={<Users className="h-5 w-5" />} title="Todays Predicted Riders" value={kpiData.today.toLocaleString()} delta="" />
-                  <StatCard icon={<Map className="h-5 w-5" />} title="Origin–Destination Pairs" value={kpiData.pairs.toLocaleString()} delta="" />
-                  <StatCard icon={<BarChart2 className="h-5 w-5" />} title="Avg per Row" value={kpiData.avg.toLocaleString()} delta="" />
-                  <StatCard icon={<AlertTriangle className="h-5 w-5" />} title="Peak Predicted" value={kpiData.peak.toLocaleString()} delta="" />
-                </div>
-
-                <div className="rounded-3xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/60 shadow-xl p-5">
-
-                  {/* Filters */}
-                  <div className="grid md:grid-cols-5 gap-3 mb-4">
-                    <div>
-                      <label className="text-xs text-gray-600 dark:text-gray-400">Origin</label>
-                      <select value={filter.from} onChange={(e)=>setFilter(s=>({...s, from:e.target.value}))} className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/60 px-2 py-2">
-                        <option value="">All</option>
-                        {uniqueOrigins.map(o=> <option key={o} value={o}>{o}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-600 dark:text-gray-400">Destination</label>
-                      <select value={filter.to} onChange={(e)=>setFilter(s=>({...s, to:e.target.value}))} className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/60 px-2 py-2">
-                        <option value="">All</option>
-                        {uniqueDestinations.map(d=> <option key={d} value={d}>{d}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-600 dark:text-gray-400">Time Slot</label>
-                      <select value={filter.slot} onChange={(e)=>setFilter(s=>({...s, slot:e.target.value}))} className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/60 px-2 py-2">
-                        <option value="">All</option>
-                        {uniqueSlots.map(s=> <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-600 dark:text-gray-400">Start Date</label>
-                      <input type="date" value={filter.start} onChange={(e)=>setFilter(s=>({...s, start:e.target.value}))} className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/60 px-2 py-2" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-600 dark:text-gray-400">End Date</label>
-                      <input type="date" value={filter.end} onChange={(e)=>setFilter(s=>({...s, end:e.target.value}))} className="w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/60 px-2 py-2" />
-                    </div>
-                  </div>
-
-                  <div className="overflow-x-auto border border-gray-100 dark:border-gray-800 rounded-xl">
-                    <table className="min-w-full text-sm">
-                      <thead>
-                        <tr className="text-left border-b border-gray-200 dark:border-gray-800">
-                          <Th>Date</Th>
-                          <Th>Origin</Th>
-                          <Th>Destination</Th>
-                          <Th>Time Slot</Th>
-                          <Th>Predicted</Th>
-                          <Th>Lower</Th>
-                          <Th>Upper</Th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {loadingForecasts && (
-                          <tr><Td colSpan={7}>Loading forecasts...</Td></tr>
-                        )}
-                        {!loadingForecasts && filteredForecasts.length === 0 && (
-                          <tr><Td colSpan={7}>No rows match filters.</Td></tr>
-                        )}
-                        {!loadingForecasts && filteredForecasts.map((r, i) => (
-                          <tr key={`${r.date}-${r.origin}-${r.destination}-${r.time_slot}-${i}`} className="border-t border-gray-100 dark:border-gray-800">
-                            <Td>{r.date}</Td>
-                            <Td>{r.origin}</Td>
-                            <Td>{r.destination}</Td>
-                            <Td>{r.time_slot}</Td>
-                            <Td>{Math.round(r.predicted_passengers)}</Td>
-                            <Td>{Math.round(r.lower_bound)}</Td>
-                            <Td>{Math.round(r.upper_bound)}</Td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </>
-            )}
+            {/* AI tab removed */}
 
             {activeTab === 'feedbacks' && (
               <div className="rounded-3xl border border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-gray-900/60 shadow-xl overflow-hidden">

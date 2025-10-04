@@ -6,8 +6,10 @@ error_reporting(E_ALL);
 ini_set('display_errors', '0');
 
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
-header('Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS');
+header('Vary: Origin');
+header('Access-Control-Allow-Credentials: true');
+header('Access-Control-Allow-Headers: *');
+header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
 header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
 header('X-XSS-Protection: 0');
@@ -93,6 +95,12 @@ header('Content-Type: application/json');
 
 if ($path === '/health') {
     jsonResponse(['ok' => true]);
+    exit;
+}
+
+// Auth routes
+if ($path === '/auth/send-otp' || $path === '/auth/verify-otp' || $path === '/auth/resend-otp' || $path === '/auth/debug') {
+    require_once __DIR__ . '/../auth.php';
     exit;
 }
 
@@ -477,8 +485,7 @@ if ($path === '/fleet/congestion' && $_SERVER['REQUEST_METHOD'] === 'GET') {
         jsonResponse([
             'success' => true,
             'data' => $congestionData,
-            'generated_at' => date('Y-m-d H:i:s'),
-            'ai_model_version' => 'v1.2.3'
+            'generated_at' => date('Y-m-d H:i:s')
         ]);
 
     } catch (Throwable $e) {

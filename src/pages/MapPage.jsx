@@ -7,7 +7,7 @@ import TopBar from "../components/TopBar"
 import DarkModeToggle from "../components/DarkModeToggle"
 
 const MapPage = ({ darkMode, setDarkMode }) => {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [selectedRoute, setSelectedRoute] = useState(null)
   const [selectedBus, setSelectedBus] = useState(null)
 
@@ -26,11 +26,11 @@ const MapPage = ({ darkMode, setDarkMode }) => {
     <div className="h-full w-full relative">
       {/* Top Bar under the sidebar only on homepage */}
       {sidebarOpen && (
-        <div className="absolute left-[400px] right-0 top-0 z-20">
+        <div className="absolute left-0 lg:left-[400px] right-0 top-0 z-20">
           <TopBar
             offsetLeft={0}
             leftAddon={null}
-            containerClassName="relative top-[88px]"
+            containerClassName=""
           />
         </div>
       )}
@@ -55,7 +55,7 @@ const MapPage = ({ darkMode, setDarkMode }) => {
       )}
       
       {/* Desktop Sidebar Content */}
-      <div className="absolute left-0 top-0 bottom-0 w-[400px] z-10">
+      <div className="absolute left-0 top-0 bottom-0 w-full lg:w-[400px] z-10">
         <Sidebar
           isOpen={sidebarOpen}
           onToggle={() => setSidebarOpen(!sidebarOpen)}
@@ -67,7 +67,7 @@ const MapPage = ({ darkMode, setDarkMode }) => {
       </div>
 
       {/* Main Map Container */}
-      <div className={`h-full transition-all duration-300 ${sidebarOpen ? "ml-[400px]" : "ml-0"}`}>
+      <div className={`h-full transition-all duration-300 ${sidebarOpen ? "lg:ml-[400px] ml-0" : "ml-0"}`}>
         {/* Map */}
         <MapView 
           selectedRoute={selectedRoute} 

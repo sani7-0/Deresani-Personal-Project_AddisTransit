@@ -27,12 +27,17 @@ html {
     font-feature-settings: "rlig" 1, "calt" 1;
     /* Added smooth transitions for dark mode */
     transition: background-color 0.3s ease, color 0.3s ease;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
 
   html {
     scroll-behavior: smooth;
     /* Prevent horizontal scroll on mobile */
     overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
   }
 
   /* Added focus styles for accessibility */
@@ -52,6 +57,40 @@ html {
 }
 
 @layer components {
+  .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  .hide-scrollbar::-webkit-scrollbar { display: none; }
+
+  .container-mobile {
+    max-width: 100%;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .card-mobile {
+    @apply rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm;
+  }
+
+  .section-mobile {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+  .safe-screen {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
+  /* Mobile shell tweaks */
+  .mobile-shell {
+    touch-action: manipulation;
+  }
+
+  /* Hide desktop TopBar inside mobile shell on all pages */
+  .mobile-shell .sticky.top-0 { display: none !important; }
   .transit-shadow {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
     /* Added dark mode shadow */
